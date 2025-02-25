@@ -81,6 +81,7 @@ runs:
       if: ${{ inputs.should-setup-buildx == 'true' }}
       with:
         driver: remote
+        buildkitd-flags: --debug
         endpoint: tcp://${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-endpoint }}
         platforms: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-platforms }}
         append: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-endpoint != '' && format('endpoint=tcp://{0},platforms={1}', steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-endpoint, steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-platforms) || '' }}
