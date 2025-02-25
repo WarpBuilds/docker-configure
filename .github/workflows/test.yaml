@@ -1,0 +1,21 @@
+name: Test WarpBuild Docker Configure Action
+
+on:
+  push:
+    branches:
+      - releases/*
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Run Docker Configure By WarpBuild Action
+        uses: ./
+        with:
+          profile-name: "test-local-4"
+          api-key: ${{ secrets.WARPBUILD_API_KEY }}
+          should-setup-buildx: "true"
+          timeout: "300000"
