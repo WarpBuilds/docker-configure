@@ -68,7 +68,7 @@ runs:
   steps:
     - name: Setup WarpBuild Docker Builders
       id: setup-warpbuild-docker-builders
-      run: setup.sh
+      run: ./setup.sh
       shell: bash
       env:
         WARPBUILD_RUNNER_VERIFICATION_TOKEN: ${{ env.WARPBUILD_RUNNER_VERIFICATION_TOKEN }}
