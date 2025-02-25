@@ -356,18 +356,38 @@ fi
 # Set Outputs for GitHub Actions
 ##############################
 # Write outputs directly to GITHUB_OUTPUT
+# Single-line outputs can remain as-is:
 echo "docker-builder-node-0-endpoint=${BUILDER_HOST}" >> "$GITHUB_OUTPUT"
 echo "docker-builder-node-0-platforms=${BUILDER_PLATFORMS}" >> "$GITHUB_OUTPUT"
-echo "docker-builder-node-0-cacert=${BUILDER_CA}" >> "$GITHUB_OUTPUT"
-echo "docker-builder-node-0-cert=${BUILDER_CLIENT_CERT}" >> "$GITHUB_OUTPUT"
-echo "docker-builder-node-0-key=${BUILDER_CLIENT_KEY}" >> "$GITHUB_OUTPUT"
+
+# For multi-line outputs (certificates), use the heredoc syntax:
+echo "docker-builder-node-0-cacert<<EOF" >> "$GITHUB_OUTPUT"
+echo "$BUILDER_CA" >> "$GITHUB_OUTPUT"
+echo "EOF" >> "$GITHUB_OUTPUT"
+
+echo "docker-builder-node-0-cert<<EOF" >> "$GITHUB_OUTPUT"
+echo "$BUILDER_CLIENT_CERT" >> "$GITHUB_OUTPUT"
+echo "EOF" >> "$GITHUB_OUTPUT"
+
+echo "docker-builder-node-0-key<<EOF" >> "$GITHUB_OUTPUT"
+echo "$BUILDER_CLIENT_KEY" >> "$GITHUB_OUTPUT"
+echo "EOF" >> "$GITHUB_OUTPUT"
 
 if [ "$BUILDER_COUNT" -gt 1 ]; then
     echo "docker-builder-node-1-endpoint=${BUILDER_1_HOST}" >> "$GITHUB_OUTPUT"
     echo "docker-builder-node-1-platforms=${BUILDER_1_PLATFORMS}" >> "$GITHUB_OUTPUT"
-    echo "docker-builder-node-1-cacert=${BUILDER_1_CA}" >> "$GITHUB_OUTPUT"
-    echo "docker-builder-node-1-cert=${BUILDER_1_CLIENT_CERT}" >> "$GITHUB_OUTPUT"
-    echo "docker-builder-node-1-key=${BUILDER_1_CLIENT_KEY}" >> "$GITHUB_OUTPUT"
+
+    echo "docker-builder-node-1-cacert<<EOF" >> "$GITHUB_OUTPUT"
+    echo "$BUILDER_1_CA" >> "$GITHUB_OUTPUT"
+    echo "EOF" >> "$GITHUB_OUTPUT"
+
+    echo "docker-builder-node-1-cert<<EOF" >> "$GITHUB_OUTPUT"
+    echo "$BUILDER_1_CLIENT_CERT" >> "$GITHUB_OUTPUT"
+    echo "EOF" >> "$GITHUB_OUTPUT"
+
+    echo "docker-builder-node-1-key<<EOF" >> "$GITHUB_OUTPUT"
+    echo "$BUILDER_1_CLIENT_KEY" >> "$GITHUB_OUTPUT"
+    echo "EOF" >> "$GITHUB_OUTPUT"
 fi
 
 ##############################
