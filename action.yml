@@ -78,12 +78,12 @@ runs:
 
     - name: Setup Buildx
       uses: docker/setup-buildx-action@v3
-      if: ${{ inputs.should-setup-buildx }} == 'true'
+      if: ${{ inputs.should-setup-buildx == 'true' }}
       with:
         driver: remote
         endpoint: tcp://${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-endpoint }}
         platforms: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-platforms }}
-        append: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-endpoint != '' && format('endpoint={0},platforms={1}', steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-endpoint, steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-platforms) }}
+        append: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-endpoint != '' && format('endpoint=tcp://{0},platforms={1}', steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-endpoint, steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-platforms) || '' }}
       env:
         BUILDER_NODE_0_AUTH_TLS_CACERT: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-cacert }}
         BUILDER_NODE_0_AUTH_TLS_CERT: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-cert }}
