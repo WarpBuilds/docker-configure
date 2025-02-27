@@ -83,7 +83,7 @@ check_port_available() {
 
     echo "Testing Docker connection to ${host}:${port} with TLS certificates..."
 
-    if curl -k --connect-timeout 5 --max-time 10 \
+    if curl --connect-timeout 5 --max-time 10 \
         --cacert "$cert_dir/ca.pem" \
         --cert "$cert_dir/cert.pem" \
         --key "$cert_dir/key.pem" \
