@@ -19,3 +19,12 @@ jobs:
           api-key: ${{ secrets.WARPBUILD_API_KEY }}
           should-setup-buildx: "true"
           timeout: "300000"
+
+      - name: Build Dockerfile in __tests__ using Buildx
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: __tests__/Dockerfile
+          tags: test-image
+          load: true
+          push: false

@@ -10,8 +10,8 @@ check_required_tools() {
         exit 1
     fi
 
-    if ! command -v openssl &> /dev/null; then
-        echo "openssl is not installed. Please install openssl to use this action."
+    if ! command -v curl &> /dev/null; then
+        echo "curl is not installed. Please install curl to use this action."
         exit 1
     fi
 }
