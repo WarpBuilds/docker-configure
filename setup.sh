@@ -116,8 +116,6 @@ check_port_available() {
         return 0
     else
         echo "✗ Docker connection failed (error: $result)"
-        echo "  Checking certificate files:"
-        ls -la "$cert_dir"
         set -e  # Restore errexit
         return 1
     fi
