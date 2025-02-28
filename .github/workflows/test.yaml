@@ -18,10 +18,10 @@ jobs:
       - name: Run Docker Configure By WarpBuild Action
         uses: ./
         with:
-          profile-name: "test-local-4"
+          profile-name: "test-local-7"
           api-key: ${{ secrets.WARPBUILD_API_KEY }}
           should-setup-buildx: true
-          timeout: "300000"
+          timeout: "100000"
 
       - name: Build Dockerfile in __tests__ using Buildx
         uses: docker/build-push-action@v6
