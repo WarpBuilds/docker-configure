@@ -10,7 +10,7 @@ env:
 
 jobs:
   test:
-    runs-on: warp-ubuntu-latest-x64-4x
+    runs-on: warpdev-ubuntu-latest-x64-4x
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
