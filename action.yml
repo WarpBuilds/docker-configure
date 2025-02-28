@@ -71,7 +71,6 @@ runs:
       run: ./setup.sh
       shell: bash
       env:
-        WARPBUILD_RUNNER_VERIFICATION_TOKEN: ${{ env.WARPBUILD_RUNNER_VERIFICATION_TOKEN }}
         INPUT_API_KEY: ${{ inputs.api-key }}
         INPUT_PROFILE_NAME: ${{ inputs.profile-name }}
         INPUT_TIMEOUT: ${{ inputs.timeout }}
