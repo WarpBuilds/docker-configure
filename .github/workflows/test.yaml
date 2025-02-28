@@ -10,7 +10,7 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: warp-ubuntu-latest-x64-4x
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -19,7 +19,7 @@ jobs:
         uses: ./
         with:
           profile-name: "test-local-7"
-          api-key: ${{ secrets.WARPBUILD_API_KEY }}
+          # api-key: ${{ secrets.WARPBUILD_API_KEY }}
           should-setup-buildx: true
           timeout: "100000"
 
