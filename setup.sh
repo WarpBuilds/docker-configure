@@ -286,29 +286,36 @@ for ((i=1; i<=MAX_RETRIES; i++)); do
 
     echo "Making API request to assign builder (attempt $i of $MAX_RETRIES)..."
 
-    # Use grouping to prevent premature exit due to set -e
-    {
-        # Save error info to variables, not relying on exit status
-        HTTP_STATUS=$(curl -s -X POST \
-            -w "%{http_code}" \
-            -o "$TEMP_RESPONSE" \
-            -H "Content-Type: application/json" \
-            -H "$AUTH_HEADER" \
-            -d "{\"profile_name\": \"$INPUT_PROFILE_NAME\"}" \
-            "$ASSIGN_BUILDER_ENDPOINT")
+    # Use curl to get the HTTP status and save response
+    HTTP_STATUS=$(curl -s -X POST \
+        -w "%{http_code}" \
+        -o "$TEMP_RESPONSE" \
+        -H "Content-Type: application/json" \
+        -H "$AUTH_HEADER" \
+        -d "{\"profile_name\": \"$INPUT_PROFILE_NAME\"}" \
+        "$ASSIGN_BUILDER_ENDPOINT")
 
-        # The || true prevents set -e from triggering on jq command failures
-        ERROR_CODE=$(jq -r '.code // "unknown"' "$TEMP_RESPONSE" || echo "unknown")
-        ERROR_MESSAGE=$(jq -r '.message // "Unknown error"' "$TEMP_RESPONSE" || echo "Unknown error")
-        ERROR_DESCRIPTION=$(jq -r '.description // "No description provided"' "$TEMP_RESPONSE" || echo "No description provided")
-    } || true  # Prevent any failure inside the block from triggering set -e
+    # Check if response is valid JSON before trying to parse it
+    if jq empty "$TEMP_RESPONSE" 2>/dev/null; then
+        # Valid JSON - check if successful response with builder instances
+        if [[ $HTTP_STATUS =~ ^2[0-9][0-9]$ ]] && \
+           jq -e 'has("builder_instances")' "$TEMP_RESPONSE" >/dev/null 2>&1 && \
+           [ "$(jq '.builder_instances | length' "$TEMP_RESPONSE")" -gt 0 ]; then
+            echo "✓ Successfully assigned builder(s)"
+            break
+        fi
 
-    # Check if response was successful (2xx status)
-    if [[ $HTTP_STATUS =~ ^2[0-9][0-9]$ ]] && \
-       [ "$(jq 'has("builder_instances")' "$TEMP_RESPONSE")" = "true" ] && \
-       [ "$(jq '.builder_instances | length' "$TEMP_RESPONSE")" -gt 0 ]; then
-        echo "✓ Successfully assigned builder(s)"
-        break
+        # Extract error information from valid JSON
+        ERROR_CODE=$(jq -r '.code // "unknown"' "$TEMP_RESPONSE")
+        ERROR_MESSAGE=$(jq -r '.message // "Unknown error"' "$TEMP_RESPONSE")
+        ERROR_DESCRIPTION=$(jq -r '.description // "No description provided"' "$TEMP_RESPONSE")
+    else
+        # Not valid JSON - use HTTP status as the error information
+        echo "WARNING: Server returned non-JSON response"
+        cat "$TEMP_RESPONSE"
+        ERROR_CODE="unknown"
+        ERROR_MESSAGE="Non-JSON response received"
+        ERROR_DESCRIPTION="HTTP status code: $HTTP_STATUS"
     fi
 
     # Only retry on 5xx (server errors), 409 (conflict), and 429 (rate limit)
