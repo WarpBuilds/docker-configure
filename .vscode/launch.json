@@ -1,0 +1,21 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "bashdb",
+      "request": "launch",
+      "name": "Bash-Debug setup.sh",
+      "cwd": "${workspaceFolder}",
+      "program": "${workspaceFolder}/setup.sh",
+      "args": [],
+      "env": {
+        "INPUT_API_KEY": "api-key",
+        "INPUT_PROFILE_NAME": "test-local-7",
+        "INPUT_TIMEOUT": "100000"
+      }
+    }
+  ]
+}
