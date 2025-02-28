@@ -1,6 +1,22 @@
 #!/bin/bash
 set -e
 
+# Record script start time (milliseconds)
+SCRIPT_START_TIME=$(date +%s000)
+
+# Check global timeout - call this function regularly
+check_global_timeout() {
+    local current_time
+    current_time=$(date +%s000)
+    local total_elapsed=$((current_time - SCRIPT_START_TIME))
+
+    if [ $total_elapsed -gt $TIMEOUT ]; then
+        echo "ERROR: Global script timeout of ${TIMEOUT}ms exceeded after ${total_elapsed}ms"
+        echo "Script execution terminated"
+        exit 1
+    fi
+}
+
 ##############################
 # Helper: Check for required tools
 ##############################
@@ -45,8 +61,9 @@ if [ "$IS_WARPBUILD_RUNNER" = false ] && [ -z "$INPUT_API_KEY" ]; then
     exit 1
 fi
 
-# Set timeout (milliseconds). Default to 30000 if not provided.
-TIMEOUT="${INPUT_TIMEOUT:-30000}"
+# Set timeout (milliseconds). Default to 200000 if not provided.
+TIMEOUT="${INPUT_TIMEOUT:-200000}"
+echo "Global script timeout set to ${TIMEOUT}ms"
 
 # Optional: if INPUT_PLATFORMS is not provided, default to linux/amd64,linux/arm64
 DEFAULT_PLATFORMS="linux/amd64,linux/arm64"
@@ -83,18 +100,25 @@ check_port_available() {
 
     echo "Testing Docker connection to ${host}:${port} with TLS certificates..."
 
-    if curl --connect-timeout 5 --max-time 10 \
+    # We'll disable errexit within this function too
+    set +e
+
+    curl --connect-timeout 5 --max-time 10 \
         --cacert "$cert_dir/ca.pem" \
         --cert "$cert_dir/cert.pem" \
         --key "$cert_dir/key.pem" \
-        -v "https://${host}:${port}/version" >/dev/null 2>&1; then
+        -s "https://${host}:${port}/version" >/dev/null 2>&1
+    local result=$?
+
+    if [ $result -eq 0 ]; then
         echo "✓ Docker API connection successful"
+        set -e  # Restore errexit
         return 0
     else
-        local result=$?
         echo "✗ Docker connection failed (error: $result)"
         echo "  Checking certificate files:"
         ls -la "$cert_dir"
+        set -e  # Restore errexit
         return 1
     fi
 }
@@ -106,8 +130,13 @@ TEMP_DIR=$(create_temp_dir)
 TEMP_RESPONSE="$TEMP_DIR/response.json"
 MAX_RETRIES=5
 RETRY_WAIT=10
-ASSIGN_BUILDER_ENDPOINT="https://api.dev.warpbuild.dev/api/v1/builders/assign"
-BUILDER_DETAILS_ENDPOINT="https://api.dev.warpbuild.dev/api/v1/builders"
+
+# Set API domain - use environment variable if provided, otherwise use production
+WARPBUILD_API_DOMAIN="${WARPBUILD_API_DOMAIN:-https://api.warpbuild.com}"
+
+# Construct API endpoints using the domain
+ASSIGN_BUILDER_ENDPOINT="${WARPBUILD_API_DOMAIN}/api/v1/builders/assign"
+BUILDER_DETAILS_ENDPOINT="${WARPBUILD_API_DOMAIN}/api/v1/builders"
 
 ##############################
 # Function: Wait for Builder Details
@@ -115,26 +144,41 @@ BUILDER_DETAILS_ENDPOINT="https://api.dev.warpbuild.dev/api/v1/builders"
 wait_for_builder_details() {
     local builder_id=$1
     local start_time
-    start_time=$(date +%s000)  # current time in milliseconds
+    start_time=$(date +%s000)
+
+    # Disable errexit for retry logic
+    set +e
 
     while true; do
+        # Check global timeout first
+        check_global_timeout
+
         local current_time
         current_time=$(date +%s000)
         local elapsed=$((current_time - start_time))
 
         if [ $elapsed -gt $TIMEOUT ]; then
             echo "Timeout waiting for builder $builder_id to be ready after ${TIMEOUT}ms"
+            set -e  # Restore errexit
             exit 1
         fi
 
-        # Get builder details
-        local details_response
-        details_response=$(curl -s --connect-timeout 5 --max-time 10 -H "$AUTH_HEADER" "${BUILDER_DETAILS_ENDPOINT}/${builder_id}/details")
+        # Get builder details with error handling
+        {
+            local details_response
+            details_response=$(curl -s --connect-timeout 5 --max-time 10 -H "$AUTH_HEADER" "${BUILDER_DETAILS_ENDPOINT}/${builder_id}/details")
 
-        # Save to temporary file for jq processing
-        echo "$details_response" > "$TEMP_DIR/builder_${builder_id}_details.json"
+            # Save to temporary file for jq processing
+            echo "$details_response" > "$TEMP_DIR/builder_${builder_id}_details.json"
 
-        # Check if response is valid JSON
+            # Extract status safely
+            local status
+            status=$(jq -r '.status // "unknown"' "$TEMP_DIR/builder_${builder_id}_details.json" || echo "unknown")
+            local host
+            host=$(jq -r '.metadata.host // ""' "$TEMP_DIR/builder_${builder_id}_details.json" || echo "")
+        } || true
+
+        # Check if response is valid JSON (run outside the block to handle normally)
         if ! jq -e . "$TEMP_DIR/builder_${builder_id}_details.json" > /dev/null 2>&1; then
             echo "Invalid JSON response from details endpoint"
             cat "$TEMP_DIR/builder_${builder_id}_details.json"
@@ -142,24 +186,21 @@ wait_for_builder_details() {
             continue
         fi
 
-        # Extract status and host - fixing jq paths
-        local status
-        status=$(jq -r '.status' "$TEMP_DIR/builder_${builder_id}_details.json")
-
         if [ "$status" = "ready" ]; then
             # Validate host is present
-            local host
-            host=$(jq -r '.metadata.host' "$TEMP_DIR/builder_${builder_id}_details.json")
             if [ -z "$host" ] || [ "$host" = "null" ]; then
                 echo "Builder $builder_id is ready but host information is missing"
+                set -e  # Restore errexit
                 exit 1
             fi
 
             echo "Builder $builder_id is ready"
             echo "$details_response" > "$TEMP_DIR/builder_${builder_id}_final.json"
+            set -e  # Restore errexit
             return 0
         elif [ "$status" = "failed" ]; then
             echo "Builder $builder_id failed to initialize"
+            set -e  # Restore errexit
             exit 1
         fi
 
@@ -167,6 +208,9 @@ wait_for_builder_details() {
         sleep 2
         rm -f "$TEMP_DIR/builder_${builder_id}_details.json"
     done
+
+    # This should never be reached, but just in case
+    set -e
 }
 
 ##############################
@@ -176,7 +220,10 @@ wait_for_docker_port() {
     local host=$1
     local cert_dir=$2
     local start_time
-    start_time=$(date +%s000)  # current time in milliseconds
+    start_time=$(date +%s000)
+
+    # Disable errexit for retry logic
+    set +e
 
     # Extract IP and port from host
     local server_ip
@@ -189,27 +236,36 @@ wait_for_docker_port() {
     echo "Waiting for Docker port ${server_port} on ${server_ip}..."
 
     while true; do
+        # Check global timeout first
+        check_global_timeout
+
         local current_time
         current_time=$(date +%s000)
         local elapsed=$((current_time - start_time))
 
         if [ $elapsed -gt $TIMEOUT ]; then
             echo "Timeout waiting for Docker port after ${TIMEOUT}ms"
+            set -e  # Restore errexit
             exit 1
         fi
 
+        # Try to connect, but don't exit on failure
         if check_port_available "$server_ip" "$server_port" "$cert_dir"; then
             echo "Docker daemon is now available"
+            set -e  # Restore errexit
             return 0
         fi
 
         echo "Docker daemon not available yet. Retrying..."
         sleep 2
     done
+
+    # This should never be reached, but just in case
+    set -e
 }
 
 ##############################
-# API Request: Assign Builder
+# API Request: Assign Builder with Exponential Backoff
 ##############################
 # Prepare the appropriate auth header.
 if [ "$IS_WARPBUILD_RUNNER" = true ]; then
@@ -218,36 +274,68 @@ else
     AUTH_HEADER="Authorization: Bearer $INPUT_API_KEY"
 fi
 
-# Call the assign builders endpoint to get builder IDs
+# Save current errexit option state and disable it for retry logic
+set +e
+# Call the assign builders endpoint with exponential backoff
+MAX_RETRIES=5
+BASE_WAIT=1
+
 for ((i=1; i<=MAX_RETRIES; i++)); do
-    RESPONSE=$(curl -s -X POST \
-        -H "Content-Type: application/json" \
-        -H "$AUTH_HEADER" \
-        -d "{\"profile_name\": \"$INPUT_PROFILE_NAME\"}" \
-        "$ASSIGN_BUILDER_ENDPOINT")
+    # Check global timeout
+    check_global_timeout
 
-    # Save the API response
-    echo "$RESPONSE" > "$TEMP_RESPONSE"
+    echo "Making API request to assign builder (attempt $i of $MAX_RETRIES)..."
 
-    # Check if response contains builder instances
-    if [ $? -eq 0 ] && [ "$(jq 'has("builder_instances")' "$TEMP_RESPONSE")" = "true" ] && \
+    # Use grouping to prevent premature exit due to set -e
+    {
+        # Save error info to variables, not relying on exit status
+        HTTP_STATUS=$(curl -s -X POST \
+            -w "%{http_code}" \
+            -o "$TEMP_RESPONSE" \
+            -H "Content-Type: application/json" \
+            -H "$AUTH_HEADER" \
+            -d "{\"profile_name\": \"$INPUT_PROFILE_NAME\"}" \
+            "$ASSIGN_BUILDER_ENDPOINT")
+
+        # The || true prevents set -e from triggering on jq command failures
+        ERROR_CODE=$(jq -r '.code // "unknown"' "$TEMP_RESPONSE" || echo "unknown")
+        ERROR_MESSAGE=$(jq -r '.message // "Unknown error"' "$TEMP_RESPONSE" || echo "Unknown error")
+        ERROR_DESCRIPTION=$(jq -r '.description // "No description provided"' "$TEMP_RESPONSE" || echo "No description provided")
+    } || true  # Prevent any failure inside the block from triggering set -e
+
+    # Check if response was successful (2xx status)
+    if [[ $HTTP_STATUS =~ ^2[0-9][0-9]$ ]] && \
+       [ "$(jq 'has("builder_instances")' "$TEMP_RESPONSE")" = "true" ] && \
        [ "$(jq '.builder_instances | length' "$TEMP_RESPONSE")" -gt 0 ]; then
+        echo "✓ Successfully assigned builder(s)"
         break
     fi
 
+    # Only retry on 5xx (server errors), 409 (conflict), and 429 (rate limit)
+    if [[ ! $HTTP_STATUS =~ ^5[0-9][0-9]$ ]] && [ "$HTTP_STATUS" != "409" ] && [ "$HTTP_STATUS" != "429" ]; then
+        echo "API Error: HTTP Status $HTTP_STATUS"
+        echo "Error details: [$ERROR_CODE] $ERROR_MESSAGE"
+        echo "Error description: $ERROR_DESCRIPTION"
+        echo "Not a retriable error. Aborting."
+        exit 1
+    fi
+
     if [ $i -eq $MAX_RETRIES ]; then
-        # Extract error message if available
-        if [ "$(jq 'has(\"error\")' "$TEMP_RESPONSE")" = "true" ]; then
-            ERROR_MSG=$(jq -r '.error' "$TEMP_RESPONSE")
-            echo "API Error: $ERROR_MSG"
-        fi
+        echo "API Error: HTTP Status $HTTP_STATUS"
+        echo "Error details: [$ERROR_CODE] $ERROR_MESSAGE"
+        echo "Error description: $ERROR_DESCRIPTION"
         echo "Failed to assign builder after $MAX_RETRIES attempts"
         exit 1
     fi
 
-    echo "Retry $i failed, waiting $RETRY_WAIT seconds..."
-    sleep $RETRY_WAIT
+    # Calculate exponential backoff with jitter
+    WAIT_TIME=$((BASE_WAIT * 2**(i-1) + RANDOM % 2))
+    echo "Assign builder failed: HTTP Status $HTTP_STATUS - $ERROR_DESCRIPTION"
+    echo "Waiting ${WAIT_TIME} seconds before next attempt..."
+    sleep $WAIT_TIME
 done
+# Restore original errexit state
+set -e
 
 ##############################
 # Extract Initial Builder IDs

@@ -13,9 +13,9 @@ inputs:
     required: false
     default: "true"
   timeout:
-    description: "The timeout(in ms) to wait for the Docker Builders to be ready"
+    description: "The timeout(in ms) to wait for the Docker Builders to be ready. By default, it is 2 minutes"
     required: false
-    default: "60000"
+    default: "1200000"
 
 outputs:
   docker-builder-node-0-endpoint:
