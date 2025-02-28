@@ -5,6 +5,9 @@ on:
     branches:
       - releases/*
 
+env:
+  WARPBUILD_API_DOMAIN: "https://api.dev.warpbuild.dev"
+
 jobs:
   test:
     runs-on: ubuntu-latest
