@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Configure WarpBuild Docker Builders
-        uses: Warpbuild/docker-configure@v1
+        uses: Warpbuilds/docker-configure@v1
         with:
           profile-name: "super-fast-builder"
 
@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Configure WarpBuild Docker Builders
-        uses: Warpbuild/docker-configure@v1
+        uses: Warpbuilds/docker-configure@v1
         with:
           api-key: ${{ secrets.WARPBUILD_API_KEY }}
           profile-name: "super-fast-builder"
