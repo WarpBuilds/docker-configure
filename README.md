@@ -8,7 +8,7 @@ This GitHub Action enables WarpBuild's Remote Docker Builders in workflows, prov
 - 🏗️ Multi-architecture builds (amd64, arm64) out of the box.
 - 🔄 Automatic Docker BuildX integration.
 - 🔐 Secure TLS authentication.
-- 🌐 Works with both WarpBuild runners and standard GitHub runners.
+- 🌐 Works with both WarpBuild runners and non-WarpBuild runners.
 
 ## Prerequisites
 
