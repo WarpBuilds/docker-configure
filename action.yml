@@ -66,9 +66,15 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: Set GitHub Path
+      run: echo "$GITHUB_ACTION_PATH" >> $GITHUB_PATH
+      shell: bash
+      env:
+        GITHUB_ACTION_PATH: ${{ github.action_path }}
+
     - name: Setup WarpBuild Docker Builders
       id: setup-warpbuild-docker-builders
-      run: ./setup.sh
+      run: setup.sh
       shell: bash
       env:
         INPUT_API_KEY: ${{ inputs.api-key }}
