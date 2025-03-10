@@ -1,0 +1,43 @@
+name: Debug WarpBuild Docker Configure Action
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile-name:
+        description: "The profile name to use for the WarpBuild Docker Builders"
+        required: true
+      runs-on:
+        description: "The runner to use for the workflow"
+        required: true
+        default: "warpdev-ubuntu-latest-x64-4x"
+      warp-build-api-domain:
+        description: "The API domain to use for the WarpBuild API"
+        required: true
+        default: "https://api.dev.warpbuild.dev"
+
+env:
+  WARPBUILD_API_DOMAIN: ${{ inputs.warp-build-api-domain }}
+
+jobs:
+  test:
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Run Docker Configure By WarpBuild Action
+        uses: ./
+        with:
+          profile-name: ${{ inputs.profile-name }}
+          # api-key: ${{ secrets.WARPBUILD_API_KEY }}
+          should-setup-buildx: true
+          timeout: "100000"
+
+      - name: Build Dockerfile in __tests__ using Buildx
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: __tests__/Dockerfile
+          tags: test-image
+          load: true
+          push: false

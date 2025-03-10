@@ -1,0 +1,98 @@
+name: "Docker Configure By WarpBuild"
+description: "Configures WarpBuild's Remote Docker Builders"
+
+inputs:
+  api-key:
+    description: "The API key for the WarpBuild API. This is not required in case of using WarpBuild runners"
+    required: false
+  profile-name:
+    description: "The profile name to use for the WarpBuild Docker Builders"
+    required: true
+  should-setup-buildx:
+    description: "Whether to run setup-buildx automatically or not"
+    required: false
+    default: "true"
+  timeout:
+    description: "The timeout(in ms) to wait for the Docker Builders to be ready. By default, it is 2 minutes"
+    required: false
+    default: "120000"
+
+outputs:
+  docker-builder-node-0-endpoint:
+    description: "The first Docker builder endpoint."
+    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-endpoint }}
+  docker-builder-node-0-platforms:
+    description: "The platforms supported by the first Docker builder."
+    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-platforms }}
+  docker-builder-node-0-cacert:
+    description: "The CA certificate for the first Docker builder."
+    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-cacert }}
+  docker-builder-node-0-cert:
+    description: "The client certificate for the first Docker builder."
+    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-cert }}
+  docker-builder-node-0-key:
+    description: "The client key for the first Docker builder."
+    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-key }}
+  docker-builder-node-1-endpoint:
+    description: "The second Docker builder endpoint (if available)."
+    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-endpoint }}
+  docker-builder-node-1-platforms:
+    description: "The platforms supported by the second Docker builder."
+    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-platforms }}
+  docker-builder-node-1-cacert:
+    description: "The CA certificate for the second Docker builder."
+    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-cacert }}
+  docker-builder-node-1-cert:
+    description: "The client certificate for the second Docker builder."
+    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-cert }}
+  docker-builder-node-1-key:
+    description: "The client key for the second Docker builder."
+    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-key }}
+
+  # Output passthrough from setup-buildx-action
+  setup-buildx-name:
+    description: "Builder name"
+    value: ${{ steps.setup-buildx.outputs.name }}
+  setup-buildx-driver:
+    description: "Builder driver"
+    value: ${{ steps.setup-buildx.outputs.driver }}
+  setup-buildx-platforms:
+    description: "Builder node platforms (preferred or available)"
+    value: ${{ steps.setup-buildx.outputs.platforms }}
+  setup-buildx-nodes:
+    description: "Builder nodes metadata"
+    value: ${{ steps.setup-buildx.outputs.nodes }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set GitHub Path
+      run: echo "$GITHUB_ACTION_PATH" >> $GITHUB_PATH
+      shell: bash
+      env:
+        GITHUB_ACTION_PATH: ${{ github.action_path }}
+
+    - name: Setup WarpBuild Docker Builders
+      id: setup-warpbuild-docker-builders
+      run: setup.sh
+      shell: bash
+      env:
+        INPUT_API_KEY: ${{ inputs.api-key }}
+        INPUT_PROFILE_NAME: ${{ inputs.profile-name }}
+        INPUT_TIMEOUT: ${{ inputs.timeout }}
+
+    - name: Setup Buildx
+      uses: docker/setup-buildx-action@v3
+      if: ${{ inputs.should-setup-buildx == 'true' }}
+      with:
+        driver: remote
+        endpoint: tcp://${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-endpoint }}
+        platforms: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-platforms }}
+        append: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-endpoint != '' && format('endpoint=tcp://{0},platforms={1}', steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-endpoint, steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-platforms) || '' }}
+      env:
+        BUILDER_NODE_0_AUTH_TLS_CACERT: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-cacert }}
+        BUILDER_NODE_0_AUTH_TLS_CERT: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-cert }}
+        BUILDER_NODE_0_AUTH_TLS_KEY: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-key }}
+        BUILDER_NODE_1_AUTH_TLS_CACERT: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-cacert }}
+        BUILDER_NODE_1_AUTH_TLS_CERT: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-cert }}
+        BUILDER_NODE_1_AUTH_TLS_KEY: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-key }}

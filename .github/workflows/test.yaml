@@ -1,0 +1,33 @@
+name: Test WarpBuild Docker Configure Action
+
+on:
+  push:
+    branches:
+      - releases/*
+
+env:
+  WARPBUILD_API_DOMAIN: "https://api.dev.warpbuild.dev"
+
+jobs:
+  test:
+    runs-on: warpdev-ubuntu-latest-x64-4x
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Run Docker Configure By WarpBuild Action
+        uses: ./
+        with:
+          profile-name: "test-local-7"
+          # api-key: ${{ secrets.WARPBUILD_API_KEY }}
+          should-setup-buildx: true
+          timeout: "100000"
+
+      - name: Build Dockerfile in __tests__ using Buildx
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: __tests__/Dockerfile
+          tags: test-image
+          load: true
+          push: false
