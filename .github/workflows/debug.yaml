@@ -9,7 +9,7 @@ on:
       runs-on:
         description: "The runner to use for the workflow"
         required: true
-        default: "warpdev-ubuntu-latest-x64-4x"
+        default: "warpdev-ubuntu-latest-x64-2x"
       warp-build-api-domain:
         description: "The API domain to use for the WarpBuild API"
         required: true
@@ -20,12 +20,18 @@ env:
 
 jobs:
   test:
+    name: Debug Run ${{ matrix.run_number }}
     runs-on: ${{ inputs.runs-on }}
+    strategy:
+      matrix:
+        run_number: [1, 2, 3]
+      fail-fast: false
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Run Docker Configure By WarpBuild Action
+        id: docker-configure
         uses: ./
         with:
           profile-name: ${{ inputs.profile-name }}
@@ -33,11 +39,16 @@ jobs:
           should-setup-buildx: true
           timeout: "100000"
 
+      - name: Print run information
+        run: |
+          echo "This is parallel run #${{ matrix.run_number }}"
+          echo "Using builder endpoint: ${{ steps.docker-configure.outputs.docker-builder-node-0-endpoint }}"
+
       - name: Build Dockerfile in __tests__ using Buildx
         uses: docker/build-push-action@v6
         with:
           context: .
           file: __tests__/Dockerfile
-          tags: test-image
+          tags: test-image-run-${{ matrix.run_number }}
           load: true
           push: false
