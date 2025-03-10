@@ -263,7 +263,7 @@ wait_for_docker_port() {
 }
 
 ##############################
-# API Request: Assign Builder with Exponential Backoff
+# API Request: Assign Builder with Static Retry Delay
 ##############################
 # Prepare the appropriate auth header.
 if [ "$IS_WARPBUILD_RUNNER" = true ]; then
@@ -274,9 +274,9 @@ fi
 
 # Save current errexit option state and disable it for retry logic
 set +e
-# Call the assign builders endpoint with exponential backoff
-MAX_RETRIES=5
-BASE_WAIT=1
+# Call the assign builders endpoint with static retry delay
+MAX_RETRIES=30
+STATIC_WAIT=5  # Fixed 5-second wait between all retries
 
 for ((i=1; i<=MAX_RETRIES; i++)); do
     # Check global timeout
@@ -333,11 +333,10 @@ for ((i=1; i<=MAX_RETRIES; i++)); do
         exit 1
     fi
 
-    # Calculate exponential backoff with jitter
-    WAIT_TIME=$((BASE_WAIT * 2**(i-1) + RANDOM % 2))
+    # Use static wait time instead of exponential backoff
     echo "Assign builder failed: HTTP Status $HTTP_STATUS - $ERROR_DESCRIPTION"
-    echo "Waiting ${WAIT_TIME} seconds before next attempt..."
-    sleep $WAIT_TIME
+    echo "Waiting ${STATIC_WAIT} seconds before next attempt..."
+    sleep $STATIC_WAIT
 done
 # Restore original errexit state
 set -e
