@@ -275,7 +275,7 @@ fi
 # Save current errexit option state and disable it for retry logic
 set +e
 # Call the assign builders endpoint with continuous retry
-STATIC_WAIT=5  # Fixed 5-second wait between retries
+STATIC_WAIT=10  # Fixed 10-second wait between retries
 retry_count=0
 
 echo "Starting builder assignment with global timeout of ${TIMEOUT}ms"
