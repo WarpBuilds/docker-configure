@@ -263,7 +263,7 @@ wait_for_docker_port() {
 }
 
 ##############################
-# API Request: Assign Builder with Static Retry Delay
+# API Request: Assign Builder with Continuous Retry
 ##############################
 # Prepare the appropriate auth header.
 if [ "$IS_WARPBUILD_RUNNER" = true ]; then
@@ -274,15 +274,18 @@ fi
 
 # Save current errexit option state and disable it for retry logic
 set +e
-# Call the assign builders endpoint with static retry delay
-MAX_RETRIES=30
-STATIC_WAIT=5  # Fixed 5-second wait between all retries
+# Call the assign builders endpoint with continuous retry
+STATIC_WAIT=10  # Fixed 10-second wait between retries
+retry_count=0
 
-for ((i=1; i<=MAX_RETRIES; i++)); do
-    # Check global timeout
+echo "Starting builder assignment with global timeout of ${TIMEOUT}ms"
+
+while true; do
+    # Check global timeout first
     check_global_timeout
 
-    echo "Making API request to assign builder (attempt $i of $MAX_RETRIES)..."
+    retry_count=$((retry_count + 1))
+    echo "Making API request to assign builder (attempt $retry_count)..."
 
     # Use curl to get the HTTP status and save response
     HTTP_STATUS=$(curl -s -X POST \
@@ -299,7 +302,7 @@ for ((i=1; i<=MAX_RETRIES; i++)); do
         if [[ $HTTP_STATUS =~ ^2[0-9][0-9]$ ]] && \
            jq -e 'has("builder_instances")' "$TEMP_RESPONSE" >/dev/null 2>&1 && \
            [ "$(jq '.builder_instances | length' "$TEMP_RESPONSE")" -gt 0 ]; then
-            echo "✓ Successfully assigned builder(s)"
+            echo "✓ Successfully assigned builder(s) after $retry_count attempts"
             break
         fi
 
@@ -325,15 +328,7 @@ for ((i=1; i<=MAX_RETRIES; i++)); do
         exit 1
     fi
 
-    if [ $i -eq $MAX_RETRIES ]; then
-        echo "API Error: HTTP Status $HTTP_STATUS"
-        echo "Error details: [$ERROR_CODE] $ERROR_MESSAGE"
-        echo "Error description: $ERROR_DESCRIPTION"
-        echo "Failed to assign builder after $MAX_RETRIES attempts"
-        exit 1
-    fi
-
-    # Use static wait time instead of exponential backoff
+    # Use static wait time
     echo "Assign builder failed: HTTP Status $HTTP_STATUS - $ERROR_DESCRIPTION"
     echo "Waiting ${STATIC_WAIT} seconds before next attempt..."
     sleep $STATIC_WAIT
