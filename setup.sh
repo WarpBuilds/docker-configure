@@ -275,7 +275,7 @@ fi
 # Save current errexit option state and disable it for retry logic
 set +e
 # Call the assign builders endpoint with static retry delay
-MAX_RETRIES=30
+MAX_RETRIES=40
 STATIC_WAIT=5  # Fixed 5-second wait between all retries
 
 for ((i=1; i<=MAX_RETRIES; i++)); do
