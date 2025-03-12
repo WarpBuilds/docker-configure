@@ -358,8 +358,6 @@ setup_buildx_node() {
 
     wait_for_builder_details "$CURRENT_ID"
 
-    echo "Builder $CURRENT_ID is ready"
-
     # Extract information from the final details - fixing jq paths
     BUILDER_HOST=$(jq -r '.metadata.host' "$TEMP_DIR/builder_${CURRENT_ID}_final.json")
     BUILDER_CA=$(jq -r '.metadata.ca' "$TEMP_DIR/builder_${CURRENT_ID}_final.json")
@@ -397,7 +395,7 @@ setup_buildx_node() {
 
     if [ "$INPUT_SHOULD_SETUP_BUILDX" = "true" ]; then
         # Setting docker buildx context
-        docker buildx create --name "$BUILDER_NAME" --node "$CURRENT_ID" --driver remote --driver-opt "cacert=$CERT_DIR/ca.pem" --driver-opt "cert=$CERT_DIR/cert.pem" --driver-opt "key=$CERT_DIR/key.pem"  --platform "$BUILDER_PLATFORMS" tcp://"$BUILDER_HOST"
+        docker buildx create --name "$BUILDER_NAME" --node "$CURRENT_ID" --driver remote --driver-opt "cacert=$CERT_DIR/ca.pem" --driver-opt "cert=$CERT_DIR/cert.pem" --driver-opt "key=$CERT_DIR/key.pem"  --platform "$BUILDER_PLATFORMS" --use tcp://"$BUILDER_HOST"
     fi
 
     ##############################
@@ -424,13 +422,8 @@ setup_buildx_node() {
 
 # Poll for builder details and configure buildx contexts
 for ((i=0; i<$BUILDER_COUNT; i++)); do
-    echo "Setting up builder $i"
     setup_buildx_node "$i"
 done
-
-if [ "$INPUT_SHOULD_SETUP_BUILDX" = "true" ]; then
-    docker buildx use "$BUILDER_NAME"
-fi
 
 ##############################
 # Cleanup
