@@ -391,7 +391,9 @@ setup_buildx_node() {
     fi
 
     # Wait for Docker port to be available, skipping this as it's suppose to pass most of the time
-    # wait_for_docker_port "$BUILDER_HOST" "$CERT_DIR"
+    if [ "$INPUT_SHOULD_SETUP_BUILDX" = "false" ]; then
+        wait_for_docker_port "$BUILDER_HOST" "$CERT_DIR"
+    fi
 
     if [ "$INPUT_SHOULD_SETUP_BUILDX" = "true" ]; then
         # Setting docker buildx context
