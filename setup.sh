@@ -424,6 +424,7 @@ setup_buildx_node() {
 
 # Poll for builder details and configure buildx contexts
 for ((i=0; i<$BUILDER_COUNT; i++)); do
+    echo "Setting up builder $i"
     setup_buildx_node "$i"
 done
 
