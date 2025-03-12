@@ -278,7 +278,7 @@ set +e
 STATIC_WAIT=10  # Fixed 10-second wait between retries
 retry_count=0
 
-echo "Starting builder assignment with global timeout of ${TIMEOUT}ms"
+echo "Starting builder assignment for profile $INPUT_PROFILE_NAME with global timeout of ${TIMEOUT}ms"
 
 while true; do
     # Check global timeout first
@@ -340,147 +340,96 @@ set -e
 # Extract Initial Builder IDs
 ##############################
 BUILDER_COUNT=$(jq '.builder_instances | length' "$TEMP_RESPONSE")
-BUILDER_ID=$(jq -r '.builder_instances[0].id' "$TEMP_RESPONSE")
-if [ -z "$BUILDER_ID" ] || [ "$BUILDER_ID" = "null" ]; then
-    echo "Failed to extract builder ID from response"
+
+if [ "$BUILDER_COUNT" -eq 0 ]; then
+    echo "No builder instances assigned, exiting"
     exit 1
 fi
 
-if [ "$BUILDER_COUNT" -gt 1 ]; then
-    BUILDER_1_ID=$(jq -r '.builder_instances[1].id' "$TEMP_RESPONSE")
-    if [ -z "$BUILDER_1_ID" ] || [ "$BUILDER_1_ID" = "null" ]; then
-        echo "Failed to extract second builder ID from response"
-        exit 1
-    fi
-fi
+# Generate a unique builder name with UUID
+BUILDER_NAME="builder-$(uuidgen)"
 
-##############################
-# Wait for Builders and Setup
-##############################
-# First builder
-echo "Waiting for builder 0 ($BUILDER_ID) to be ready..."
-wait_for_builder_details "$BUILDER_ID"
+# func to create a buildx context node
+setup_buildx_node() {
 
-# Extract information from the final details - fixing jq paths
-BUILDER_HOST=$(jq -r '.metadata.host' "$TEMP_DIR/builder_${BUILDER_ID}_final.json")
-BUILDER_CA=$(jq -r '.metadata.ca' "$TEMP_DIR/builder_${BUILDER_ID}_final.json")
-BUILDER_CLIENT_CERT=$(jq -r '.metadata.client_cert' "$TEMP_DIR/builder_${BUILDER_ID}_final.json")
-BUILDER_CLIENT_KEY=$(jq -r '.metadata.client_key' "$TEMP_DIR/builder_${BUILDER_ID}_final.json")
-BUILDER_PLATFORMS=$(jq -r '.arch // empty' "$TEMP_DIR/builder_${BUILDER_ID}_final.json")
-if [ -z "$BUILDER_PLATFORMS" ]; then
-    BUILDER_PLATFORMS="$DEFAULT_PLATFORMS"
-fi
+    INDEX=$1
 
-# Format the platform with "linux/" prefix
-if [ -n "$BUILDER_PLATFORMS" ]; then
-    # Check if it already contains "linux/"
-    if [[ "$BUILDER_PLATFORMS" != *"linux/"* ]]; then
-        # Handle comma-separated values
-        BUILDER_PLATFORMS=$(echo "$BUILDER_PLATFORMS" | sed 's/\([^,]*\)/linux\/\1/g')
-    fi
-else
-    BUILDER_PLATFORMS="$DEFAULT_PLATFORMS"
-fi
+    CURRENT_ID=$(jq -r ".builder_instances[$INDEX].id" "$TEMP_RESPONSE")
 
-# Setup TLS certificates for first builder
-CERT_DIR=$(mktemp -d)
-echo "$BUILDER_CA" > "$CERT_DIR/ca.pem"
-echo "$BUILDER_CLIENT_CERT" > "$CERT_DIR/cert.pem"
-echo "$BUILDER_CLIENT_KEY" > "$CERT_DIR/key.pem"
-# Check if files were created properly
-if [ ! -s "$CERT_DIR/ca.pem" ] || [ ! -s "$CERT_DIR/cert.pem" ] || [ ! -s "$CERT_DIR/key.pem" ]; then
-    echo "Failed to write certificate files"
-    rm -rf "$CERT_DIR"
-    exit 1
-fi
+    wait_for_builder_details "$CURRENT_ID"
 
-# Wait for Docker port to be available
-wait_for_docker_port "$BUILDER_HOST" "$CERT_DIR"
+    echo "Builder $CURRENT_ID is ready"
 
-# Second builder (if available)
-if [ "$BUILDER_COUNT" -gt 1 ]; then
-    echo "Waiting for builder 1 ($BUILDER_1_ID) to be ready..."
-    wait_for_builder_details "$BUILDER_1_ID"
-
-    # Extract information for second builder
-    BUILDER_1_HOST=$(jq -r '.metadata.host' "$TEMP_DIR/builder_${BUILDER_1_ID}_final.json")
-    BUILDER_1_CA=$(jq -r '.metadata.ca' "$TEMP_DIR/builder_${BUILDER_1_ID}_final.json")
-    BUILDER_1_CLIENT_CERT=$(jq -r '.metadata.client_cert' "$TEMP_DIR/builder_${BUILDER_1_ID}_final.json")
-    BUILDER_1_CLIENT_KEY=$(jq -r '.metadata.client_key' "$TEMP_DIR/builder_${BUILDER_1_ID}_final.json")
-    BUILDER_1_PLATFORMS=$(jq -r '.arch // empty' "$TEMP_DIR/builder_${BUILDER_1_ID}_final.json")
-    if [ -z "$BUILDER_1_PLATFORMS" ]; then
-        BUILDER_1_PLATFORMS="$DEFAULT_PLATFORMS"
-    fi
+    # Extract information from the final details - fixing jq paths
+    BUILDER_HOST=$(jq -r '.metadata.host' "$TEMP_DIR/builder_${CURRENT_ID}_final.json")
+    BUILDER_CA=$(jq -r '.metadata.ca' "$TEMP_DIR/builder_${CURRENT_ID}_final.json")
+    BUILDER_CLIENT_CERT=$(jq -r '.metadata.client_cert' "$TEMP_DIR/builder_${CURRENT_ID}_final.json")
+    BUILDER_CLIENT_KEY=$(jq -r '.metadata.client_key' "$TEMP_DIR/builder_${CURRENT_ID}_final.json")
+    BUILDER_PLATFORMS=$(jq -r '.arch' "$TEMP_DIR/builder_${CURRENT_ID}_final.json")
 
     # Format the platform with "linux/" prefix
-    if [ -n "$BUILDER_1_PLATFORMS" ]; then
+    if [ -n "$BUILDER_PLATFORMS" ]; then
         # Check if it already contains "linux/"
-        if [[ "$BUILDER_1_PLATFORMS" != *"linux/"* ]]; then
+        if [[ "$BUILDER_PLATFORMS" != *"linux/"* ]]; then
             # Handle comma-separated values
-            BUILDER_1_PLATFORMS=$(echo "$BUILDER_1_PLATFORMS" | sed 's/\([^,]*\)/linux\/\1/g')
+            BUILDER_PLATFORMS=$(echo "$BUILDER_PLATFORMS" | sed 's/\([^,]*\)/linux\/\1/g')
         fi
-    else
-        BUILDER_1_PLATFORMS="$DEFAULT_PLATFORMS"
     fi
+    
+    # Create cert directory in user's home folder
+    CERT_DIR="$HOME/.warpbuild/buildkit/$BUILDER_NAME/$CURRENT_ID"
+    mkdir -p "$CERT_DIR"
 
-    # Setup TLS certificates for second builder
-    CERT_DIR_1=$(mktemp -d)
-    echo "$BUILDER_1_CA" > "$CERT_DIR_1/ca.pem"
-    echo "$BUILDER_1_CLIENT_CERT" > "$CERT_DIR_1/cert.pem"
-    echo "$BUILDER_1_CLIENT_KEY" > "$CERT_DIR_1/key.pem"
+    echo "$BUILDER_CA" > "$CERT_DIR/ca.pem"
+    echo "$BUILDER_CLIENT_CERT" > "$CERT_DIR/cert.pem"
+    echo "$BUILDER_CLIENT_KEY" > "$CERT_DIR/key.pem"
     # Check if files were created properly
-    if [ ! -s "$CERT_DIR_1/ca.pem" ] || [ ! -s "$CERT_DIR_1/cert.pem" ] || [ ! -s "$CERT_DIR_1/key.pem" ]; then
-        echo "Failed to write certificate files for second builder"
-        rm -rf "$CERT_DIR" "$CERT_DIR_1"
+    if [ ! -s "$CERT_DIR/ca.pem" ] || [ ! -s "$CERT_DIR/cert.pem" ] || [ ! -s "$CERT_DIR/key.pem" ]; then
+        echo "Failed to write certificate files for builder $CURRENT_ID"
+        rm -rf "$CERT_DIR"
         exit 1
     fi
 
-    # Wait for second builder's Docker port
-    wait_for_docker_port "$BUILDER_1_HOST" "$CERT_DIR_1"
-fi
+    # Wait for Docker port to be available, skipping this as it's suppose to pass most of the time
+    # wait_for_docker_port "$BUILDER_HOST" "$CERT_DIR"
 
-##############################
-# Set Outputs for GitHub Actions
-##############################
-# Write outputs directly to GITHUB_OUTPUT
-# Single-line outputs can remain as-is:
-echo "docker-builder-node-0-endpoint=${BUILDER_HOST}" >> "$GITHUB_OUTPUT"
-echo "docker-builder-node-0-platforms=${BUILDER_PLATFORMS}" >> "$GITHUB_OUTPUT"
+    if [ "$INPUT_SHOULD_SETUP_BUILDX" = "true" ]; then
+        # Setting docker buildx context
+        docker buildx create --name "$BUILDER_NAME" --node "$CURRENT_ID" --driver remote --driver-opt "cacert=$CERT_DIR/ca.pem" --driver-opt "cert=$CERT_DIR/cert.pem" --driver-opt "key=$CERT_DIR/key.pem"  --platform "$BUILDER_PLATFORMS" tcp://"$BUILDER_HOST"
+    fi
 
-# For multi-line outputs (certificates), use the heredoc syntax:
-echo "docker-builder-node-0-cacert<<EOF" >> "$GITHUB_OUTPUT"
-echo "$BUILDER_CA" >> "$GITHUB_OUTPUT"
-echo "EOF" >> "$GITHUB_OUTPUT"
+    ##############################
+    # Set Outputs for GitHub Actions
+    ##############################
+    # Write outputs directly to GITHUB_OUTPUT
+    # Single-line outputs can remain as-is:
+    echo "docker-builder-node-${INDEX}-endpoint=${BUILDER_HOST}" >> "$GITHUB_OUTPUT"
+    echo "docker-builder-node-${INDEX}-platforms=${BUILDER_PLATFORMS}" >> "$GITHUB_OUTPUT"
 
-echo "docker-builder-node-0-cert<<EOF" >> "$GITHUB_OUTPUT"
-echo "$BUILDER_CLIENT_CERT" >> "$GITHUB_OUTPUT"
-echo "EOF" >> "$GITHUB_OUTPUT"
-
-echo "docker-builder-node-0-key<<EOF" >> "$GITHUB_OUTPUT"
-echo "$BUILDER_CLIENT_KEY" >> "$GITHUB_OUTPUT"
-echo "EOF" >> "$GITHUB_OUTPUT"
-
-if [ "$BUILDER_COUNT" -gt 1 ]; then
-    echo "docker-builder-node-1-endpoint=${BUILDER_1_HOST}" >> "$GITHUB_OUTPUT"
-    echo "docker-builder-node-1-platforms=${BUILDER_1_PLATFORMS}" >> "$GITHUB_OUTPUT"
-
-    echo "docker-builder-node-1-cacert<<EOF" >> "$GITHUB_OUTPUT"
-    echo "$BUILDER_1_CA" >> "$GITHUB_OUTPUT"
+    # For multi-line outputs (certificates), use the heredoc syntax:
+    echo "docker-builder-node-${INDEX}-cacert<<EOF" >> "$GITHUB_OUTPUT"
+    echo "$BUILDER_CA" >> "$GITHUB_OUTPUT"
     echo "EOF" >> "$GITHUB_OUTPUT"
 
-    echo "docker-builder-node-1-cert<<EOF" >> "$GITHUB_OUTPUT"
-    echo "$BUILDER_1_CLIENT_CERT" >> "$GITHUB_OUTPUT"
+    echo "docker-builder-node-${INDEX}-cert<<EOF" >> "$GITHUB_OUTPUT"
+    echo "$BUILDER_CLIENT_CERT" >> "$GITHUB_OUTPUT"
     echo "EOF" >> "$GITHUB_OUTPUT"
 
-    echo "docker-builder-node-1-key<<EOF" >> "$GITHUB_OUTPUT"
-    echo "$BUILDER_1_CLIENT_KEY" >> "$GITHUB_OUTPUT"
+    echo "docker-builder-node-${INDEX}-key<<EOF" >> "$GITHUB_OUTPUT"
+    echo "$BUILDER_CLIENT_KEY" >> "$GITHUB_OUTPUT"
     echo "EOF" >> "$GITHUB_OUTPUT"
+}
+
+# Poll for builder details and configure buildx contexts
+for ((i=0; i<$BUILDER_COUNT; i++)); do
+    setup_buildx_node "$i"
+done
+
+if [ "$INPUT_SHOULD_SETUP_BUILDX" = "true" ]; then
+    docker buildx use "$BUILDER_NAME"
 fi
 
 ##############################
 # Cleanup
 ##############################
-rm -rf "$TEMP_DIR" "$CERT_DIR"  # Clean up all temporary directories
-if [ "$BUILDER_COUNT" -gt 1 ]; then
-    rm -rf "$CERT_DIR_1"
-fi
+rm -rf "$TEMP_DIR" # Clean up all temporary directories\

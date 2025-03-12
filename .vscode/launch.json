@@ -13,8 +13,9 @@
       "args": [],
       "env": {
         "INPUT_API_KEY": "api-key",
-        "INPUT_PROFILE_NAME": "test-local-7",
-        "INPUT_TIMEOUT": "100000"
+        "INPUT_PROFILE_NAME": "prod-ephemeral",
+        "INPUT_SHOULD_SETUP_BUILDX": "true",
+        "INPUT_TIMEOUT": "1000000"
       }
     }
   ]
