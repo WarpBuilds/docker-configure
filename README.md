@@ -91,17 +91,6 @@ jobs:
 | `docker-builder-node-1-cert`      | Client certificate for the second builder node (if available)  |
 | `docker-builder-node-1-key`       | Client key for the second builder node (if available)          |
 
-### BuildX Passthrough Outputs
-
-The action also passthroughs the following outputs from the `docker/setup-buildx-action` action in case you need them:
-
-| Name                     | Description                                     |
-| ------------------------ | ----------------------------------------------- |
-| `setup-buildx-name`      | Name of the configured BuildX builder           |
-| `setup-buildx-driver`    | Driver used by BuildX                           |
-| `setup-buildx-platforms` | All available platforms in BuildX configuration |
-| `setup-buildx-nodes`     | Metadata for all BuildX nodes                   |
-
 ## Troubleshooting
 
 ### Common Issues
