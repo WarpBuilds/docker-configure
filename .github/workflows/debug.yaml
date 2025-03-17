@@ -53,6 +53,6 @@ jobs:
           context: .
           file: __tests__/Dockerfile
           tags: test-image-run-${{ matrix.run_number }}
-          load: true
+          load: false
           push: false
           platforms: linux/amd64,linux/arm64
