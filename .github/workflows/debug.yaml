@@ -55,3 +55,4 @@ jobs:
           tags: test-image-run-${{ matrix.run_number }}
           load: true
           push: false
+          platforms: linux/amd64,linux/arm64
