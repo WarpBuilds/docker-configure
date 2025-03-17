@@ -430,8 +430,6 @@ for ((i=0; i<$BUILDER_COUNT; i++)); do
     setup_buildx_node "$i"
 done
 
-docker buildx ls
-
 ##############################
 # Cleanup
 ##############################
