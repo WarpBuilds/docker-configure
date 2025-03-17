@@ -394,8 +394,13 @@ setup_buildx_node() {
     fi
 
     if [ "$INPUT_SHOULD_SETUP_BUILDX" = "true" ]; then
-        # Setting docker buildx context
-        docker buildx create --name "$BUILDER_NAME" --append --node "$CURRENT_ID" --driver remote --driver-opt "cacert=$CERT_DIR/ca.pem" --driver-opt "cert=$CERT_DIR/cert.pem" --driver-opt "key=$CERT_DIR/key.pem"  --platform "$BUILDER_PLATFORMS" --use tcp://"$BUILDER_HOST"
+        if [ "$INDEX" -eq 0 ]; then
+            # Setting docker buildx context
+            docker buildx create --name "$BUILDER_NAME" --node "$CURRENT_ID" --driver remote --driver-opt "cacert=$CERT_DIR/ca.pem" --driver-opt "cert=$CERT_DIR/cert.pem" --driver-opt "key=$CERT_DIR/key.pem"  --platform "$BUILDER_PLATFORMS" --use tcp://"$BUILDER_HOST"
+        else
+            # append the node to the buildx context
+            docker buildx create --name "$BUILDER_NAME" --append --node "$CURRENT_ID" --driver remote --driver-opt "cacert=$CERT_DIR/ca.pem" --driver-opt "cert=$CERT_DIR/cert.pem" --driver-opt "key=$CERT_DIR/key.pem"  --platform "$BUILDER_PLATFORMS" --use tcp://"$BUILDER_HOST"
+        fi
     fi
 
     ##############################
@@ -424,6 +429,8 @@ setup_buildx_node() {
 for ((i=0; i<$BUILDER_COUNT; i++)); do
     setup_buildx_node "$i"
 done
+
+docker buildx ls
 
 ##############################
 # Cleanup
