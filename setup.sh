@@ -373,7 +373,7 @@ setup_buildx_node() {
             BUILDER_PLATFORMS=$(echo "$BUILDER_PLATFORMS" | sed 's/\([^,]*\)/linux\/\1/g')
         fi
     fi
-    
+
     # Create cert directory in user's home folder
     CERT_DIR="$HOME/.warpbuild/buildkit/$BUILDER_NAME/$CURRENT_ID"
     mkdir -p "$CERT_DIR"
@@ -394,8 +394,13 @@ setup_buildx_node() {
     fi
 
     if [ "$INPUT_SHOULD_SETUP_BUILDX" = "true" ]; then
-        # Setting docker buildx context
-        docker buildx create --name "$BUILDER_NAME" --node "$CURRENT_ID" --driver remote --driver-opt "cacert=$CERT_DIR/ca.pem" --driver-opt "cert=$CERT_DIR/cert.pem" --driver-opt "key=$CERT_DIR/key.pem"  --platform "$BUILDER_PLATFORMS" --use tcp://"$BUILDER_HOST"
+        if [ "$INDEX" -eq 0 ]; then
+            # Setting docker buildx context
+            docker buildx create --name "$BUILDER_NAME" --node "$CURRENT_ID" --driver remote --driver-opt "cacert=$CERT_DIR/ca.pem" --driver-opt "cert=$CERT_DIR/cert.pem" --driver-opt "key=$CERT_DIR/key.pem"  --platform "$BUILDER_PLATFORMS" --use tcp://"$BUILDER_HOST"
+        else
+            # append the node to the buildx context
+            docker buildx create --name "$BUILDER_NAME" --append --node "$CURRENT_ID" --driver remote --driver-opt "cacert=$CERT_DIR/ca.pem" --driver-opt "cert=$CERT_DIR/cert.pem" --driver-opt "key=$CERT_DIR/key.pem"  --platform "$BUILDER_PLATFORMS" --use tcp://"$BUILDER_HOST"
+        fi
     fi
 
     ##############################

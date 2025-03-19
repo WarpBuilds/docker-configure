@@ -31,3 +31,4 @@ jobs:
           tags: test-image
           load: true
           push: false
+          platforms: linux/amd64,linux/arm64
