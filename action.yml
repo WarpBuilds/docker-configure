@@ -20,50 +20,26 @@ inputs:
 outputs:
   docker-builder-node-0-endpoint:
     description: "The first Docker builder endpoint."
-    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-endpoint }}
   docker-builder-node-0-platforms:
     description: "The platforms supported by the first Docker builder."
-    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-platforms }}
   docker-builder-node-0-cacert:
     description: "The CA certificate for the first Docker builder."
-    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-cacert }}
   docker-builder-node-0-cert:
     description: "The client certificate for the first Docker builder."
-    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-cert }}
   docker-builder-node-0-key:
     description: "The client key for the first Docker builder."
-    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-0-key }}
   docker-builder-node-1-endpoint:
     description: "The second Docker builder endpoint (if available)."
-    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-endpoint }}
   docker-builder-node-1-platforms:
     description: "The platforms supported by the second Docker builder."
-    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-platforms }}
   docker-builder-node-1-cacert:
     description: "The CA certificate for the second Docker builder."
-    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-cacert }}
   docker-builder-node-1-cert:
     description: "The client certificate for the second Docker builder."
-    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-cert }}
   docker-builder-node-1-key:
     description: "The client key for the second Docker builder."
-    value: ${{ steps.setup-warpbuild-docker-builders.outputs.docker-builder-node-1-key }}
 
 runs:
-  using: "composite"
-  steps:
-    - name: Set GitHub Path
-      run: echo "$GITHUB_ACTION_PATH" >> $GITHUB_PATH
-      shell: bash
-      env:
-        GITHUB_ACTION_PATH: ${{ github.action_path }}
-
-    - name: Setup WarpBuild Docker Builders
-      id: setup-warpbuild-docker-builders
-      run: setup.sh
-      shell: bash
-      env:
-        INPUT_API_KEY: ${{ inputs.api-key }}
-        INPUT_PROFILE_NAME: ${{ inputs.profile-name }}
-        INPUT_TIMEOUT: ${{ inputs.timeout }}
-        INPUT_SHOULD_SETUP_BUILDX: ${{ inputs.should-setup-buildx }}
+  using: 'node20'
+  main: 'main.js'
+  post: 'cleanup.js'
