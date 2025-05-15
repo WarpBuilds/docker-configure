@@ -41,5 +41,5 @@ outputs:
 
 runs:
   using: 'node20'
-  main: 'main.js'
-  post: 'cleanup.js'
+  main: 'dist/main.js'
+  post: 'dist/cleanup.js'
