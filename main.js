@@ -76,6 +76,11 @@ async function setupBuildxNode(index, builderId, builderName, config, timeout, s
             `tcp://${builderHost}`
         ];
 
+        // For nodes after the first one (index > 0), add the --append flag
+        // This tells buildx to add this node to the existing builder context
+        // instead of creating a new one
+        // The splice(2, 0, '--append') inserts '--append' at index 2 of baseCmd array,
+        // so it appears right after 'buildx create' in the command
         if (index > 0) {
             baseCmd.splice(2, 0, '--append');
         }
