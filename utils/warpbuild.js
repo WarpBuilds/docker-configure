@@ -166,6 +166,7 @@ async function teardownBuilder(config, builderId) {
     const response = await makeWarpBuildRequest(
         config.getBuilderTeardownEndpoint(builderId),
         {
+            method: 'DELETE',
             headers: { [authType]: authValue },
             timeout: 10000
         }

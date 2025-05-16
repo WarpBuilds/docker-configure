@@ -6,25 +6,6 @@ const { v4: uuidv4 } = require('uuid');
 const os = require('os');
 const { WarpBuildConfig, assignBuilders, getBuilderDetails } = require('./utils/warpbuild');
 
-// Helper function to check port availability
-async function checkPortAvailable(host, port, certDir) {
-    try {
-        const options = {
-            ca: await fs.readFile(path.join(certDir, 'ca.pem')),
-            cert: await fs.readFile(path.join(certDir, 'cert.pem')),
-            key: await fs.readFile(path.join(certDir, 'key.pem')),
-        };
-
-        const url = `https://${host}:${port}/version`;
-        await makeRequest(url, { ...options, timeout: 5000 });
-        core.info('✓ Docker API connection successful');
-        return true;
-    } catch (error) {
-        core.info(`✗ Docker connection failed (error: ${error.message})`);
-        return false;
-    }
-}
-
 // Helper function to wait for builder details
 async function waitForBuilderDetails(builderId, config, timeout, startTime) {
     while (true) {
@@ -35,24 +16,25 @@ async function waitForBuilderDetails(builderId, config, timeout, startTime) {
             throw new Error(`Timeout waiting for builder ${builderId} to be ready after ${timeout}ms`);
         }
 
+        let details;
         try {
-            const details = await getBuilderDetails(config, builderId);
-            
-            if (details.status === 'ready') {
-                if (!details.metadata?.host) {
-                    throw new Error(`Builder ${builderId} is ready but host information is missing`);
-                }
-                return details;
-            } else if (details.status === 'failed') {
-                throw new Error(`Builder ${builderId} failed to initialize`);
-            }
-
-            core.info(`Builder ${builderId} status: ${details.status}. Waiting...`);
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            details = await getBuilderDetails(config, builderId);
         } catch (error) {
             core.warning(`Error getting builder details: ${error.message}`);
             await new Promise(resolve => setTimeout(resolve, 2000));
         }
+        if (details.status === 'ready') {
+            if (!details.metadata?.host) {
+                throw new Error(`Builder ${builderId} is ready but host information is missing`);
+            }
+            return details;
+        } else if (details.status === 'failed') {
+            throw new Error(`Builder ${builderId} failed to initialize`);
+        }
+
+        core.info(`Builder ${builderId} status: ${details.status}. Waiting...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
     }
 }
 
