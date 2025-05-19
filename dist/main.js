@@ -26495,12 +26495,22 @@ async function teardownBuilder(config, builderId) {
     const response = await makeWarpBuildRequest(
         config.getBuilderTeardownEndpoint(builderId),
         {
+            method: 'DELETE',
             headers: { [authType]: authValue },
             timeout: 10000
         }
     );
 
-    return JSON.parse(response.data);
+    try {
+        return JSON.parse(response.data);
+    } catch (error) {
+        // If response is not valid JSON, return a structured error response
+        return {
+            statusCode: response.statusCode,
+            message: 'Invalid JSON response',
+            rawData: response.data
+        };
+    }
 }
 
 module.exports = {
@@ -28433,25 +28443,6 @@ const { v4: uuidv4 } = __nccwpck_require__(2048);
 const os = __nccwpck_require__(857);
 const { WarpBuildConfig, assignBuilders, getBuilderDetails } = __nccwpck_require__(6784);
 
-// Helper function to check port availability
-async function checkPortAvailable(host, port, certDir) {
-    try {
-        const options = {
-            ca: await fs.readFile(path.join(certDir, 'ca.pem')),
-            cert: await fs.readFile(path.join(certDir, 'cert.pem')),
-            key: await fs.readFile(path.join(certDir, 'key.pem')),
-        };
-
-        const url = `https://${host}:${port}/version`;
-        await makeRequest(url, { ...options, timeout: 5000 });
-        core.info('✓ Docker API connection successful');
-        return true;
-    } catch (error) {
-        core.info(`✗ Docker connection failed (error: ${error.message})`);
-        return false;
-    }
-}
-
 // Helper function to wait for builder details
 async function waitForBuilderDetails(builderId, config, timeout, startTime) {
     while (true) {
@@ -28462,24 +28453,25 @@ async function waitForBuilderDetails(builderId, config, timeout, startTime) {
             throw new Error(`Timeout waiting for builder ${builderId} to be ready after ${timeout}ms`);
         }
 
+        let details;
         try {
-            const details = await getBuilderDetails(config, builderId);
-            
-            if (details.status === 'ready') {
-                if (!details.metadata?.host) {
-                    throw new Error(`Builder ${builderId} is ready but host information is missing`);
-                }
-                return details;
-            } else if (details.status === 'failed') {
-                throw new Error(`Builder ${builderId} failed to initialize`);
-            }
-
-            core.info(`Builder ${builderId} status: ${details.status}. Waiting...`);
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            details = await getBuilderDetails(config, builderId);
         } catch (error) {
             core.warning(`Error getting builder details: ${error.message}`);
             await new Promise(resolve => setTimeout(resolve, 2000));
         }
+        if (details.status === 'ready') {
+            if (!details.metadata?.host) {
+                throw new Error(`Builder ${builderId} is ready but host information is missing`);
+            }
+            return details;
+        } else if (details.status === 'failed') {
+            throw new Error(`Builder ${builderId} failed to initialize`);
+        }
+
+        core.info(`Builder ${builderId} status: ${details.status}. Waiting...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
     }
 }
 
@@ -28521,6 +28513,11 @@ async function setupBuildxNode(index, builderId, builderName, config, timeout, s
             `tcp://${builderHost}`
         ];
 
+        // For nodes after the first one (index > 0), add the --append flag
+        // This tells buildx to add this node to the existing builder context
+        // instead of creating a new one
+        // The splice(2, 0, '--append') inserts '--append' at index 2 of baseCmd array,
+        // so it appears right after 'buildx create' in the command
         if (index > 0) {
             baseCmd.splice(2, 0, '--append');
         }

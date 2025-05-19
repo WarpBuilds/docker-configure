@@ -25814,12 +25814,22 @@ async function teardownBuilder(config, builderId) {
     const response = await makeWarpBuildRequest(
         config.getBuilderTeardownEndpoint(builderId),
         {
+            method: 'DELETE',
             headers: { [authType]: authValue },
             timeout: 10000
         }
     );
 
-    return JSON.parse(response.data);
+    try {
+        return JSON.parse(response.data);
+    } catch (error) {
+        // If response is not valid JSON, return a structured error response
+        return {
+            statusCode: response.statusCode,
+            message: 'Invalid JSON response',
+            rawData: response.data
+        };
+    }
 }
 
 module.exports = {
@@ -27776,17 +27786,22 @@ async function cleanup() {
         // Cleanup each builder using the WarpBuild API
         for (const builder of builders) {
             try {
-                const response = await teardownBuilder(config, builder.id);
+                let response = await teardownBuilder(config, builder.id);
+                
+                // Handle retry for server errors
                 if (response.statusCode >= 500 && response.statusCode < 600) {
                     core.info(`Got ${response.statusCode} error, retrying teardown for builder ${builder.id} after 1 second...`);
                     await new Promise(resolve => setTimeout(resolve, 1000));
                     response = await teardownBuilder(config, builder.id);
                 }
 
+                // Check if response is valid
                 if (response.statusCode >= 200 && response.statusCode < 300) {
                     core.info(`Successfully cleaned up builder ${builder.id}`);
                 } else {
-                    core.warning(`Failed to cleanup builder ${builder.id}: ${response.statusCode} ${response.message}`);
+                    const errorMessage = response.message || 'Unknown error';
+                    const errorDetails = response.rawData ? ` (Raw response: ${response.rawData})` : '';
+                    core.warning(`Failed to cleanup builder ${builder.id}: ${response.statusCode} ${errorMessage}${errorDetails}`);
                 }
             } catch (error) {
                 core.warning(`Error cleaning up builder ${builder.id}: ${error.message}`);
