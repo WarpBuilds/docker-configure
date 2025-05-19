@@ -1,0 +1,16 @@
+{
+  "name": "warpbuild-docker-configure",
+  "version": "1.0.0",
+  "description": "Configures WarpBuild's Remote Docker Builders",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "dependencies": {
+    "@actions/core": "^1.10.0",
+    "@actions/exec": "^1.1.1",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.1"
+  }
+} 
