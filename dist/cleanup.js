@@ -25746,7 +25746,7 @@ async function makeWarpBuildRequest(url, options, data = null) {
  * @param {string} profileName - Profile name to assign builders for
  * @returns {Promise<Object>} - Parsed response with builder instances
  */
-async function assignBuilders(config, profileName) {
+async function assignBuilders(config, profileName, startTime, timeout) {
     const [authType, authValue] = config.authHeader.split(':').map(s => s.trim());
 
     while (true) {
@@ -25774,7 +25774,19 @@ async function assignBuilders(config, profileName) {
                 throw new Error(`API Error: ${response.statusCode} - ${JSON.stringify(responseData)}`);
             }
 
-            core.info(`Retrying after error: ${response.statusCode}`);
+            const currentTime = Date.now();
+            const elapsedTime = currentTime - startTime;
+
+            if (elapsedTime >= timeout) {
+                core.error(`ERROR: Global script timeout of ${timeout}ms exceeded after ${elapsedTime}ms`);
+                core.error('Script execution terminated');
+                throw new Error(`ERROR: Global script timeout of ${timeout}ms exceeded after ${elapsedTime}ms`);
+            }
+
+            // Extract error information from response
+            const errorDescription = responseData.description || 'No description provided';
+            core.info(`Assign builder failed: HTTP Status ${response.statusCode} - ${errorDescription}`);
+            core.info('Waiting 10 seconds before next attempt...');
             await new Promise(resolve => setTimeout(resolve, 10000));
         } catch (error) {
             core.warning(`Request failed: ${error.message}`);

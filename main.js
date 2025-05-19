@@ -13,7 +13,9 @@ async function waitForBuilderDetails(builderId, config, timeout, startTime) {
         const elapsed = currentTime - startTime;
 
         if (elapsed > timeout) {
-            throw new Error(`Timeout waiting for builder ${builderId} to be ready after ${timeout}ms`);
+            core.error(`ERROR: Global script timeout of ${timeout}ms exceeded after ${elapsed}ms`);
+            core.error('Script execution terminated');
+            throw new Error(`ERROR: Global script timeout of ${timeout}ms exceeded after ${elapsed}ms`);
         }
 
         let details;
@@ -107,7 +109,7 @@ async function run() {
         const config = new WarpBuildConfig();
 
         // Assign builders
-        const responseData = await assignBuilders(config, profileName);
+        const responseData = await assignBuilders(config, profileName, startTime, timeout);
         const builderName = `builder-${uuidv4()}`;
 
         // Save builder information for cleanup
