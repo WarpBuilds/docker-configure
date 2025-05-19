@@ -172,7 +172,16 @@ async function teardownBuilder(config, builderId) {
         }
     );
 
-    return JSON.parse(response.data);
+    try {
+        return JSON.parse(response.data);
+    } catch (error) {
+        // If response is not valid JSON, return a structured error response
+        return {
+            statusCode: response.statusCode,
+            message: 'Invalid JSON response',
+            rawData: response.data
+        };
+    }
 }
 
 module.exports = {
