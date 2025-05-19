@@ -43,9 +43,10 @@ async function cleanup() {
                 if (response.statusCode >= 200 && response.statusCode < 300) {
                     core.info(`Successfully cleaned up builder ${builder.id}`);
                 } else {
-                    const errorMessage = response.message || 'Unknown error';
+                    const errorMessage = response.message || response.error || 'Unknown error';
                     const errorDetails = response.rawData ? ` (Raw response: ${response.rawData})` : '';
-                    core.warning(`Failed to cleanup builder ${builder.id}: ${response.statusCode} ${errorMessage}${errorDetails}`);
+                    const statusCode = response.statusCode || 'No status code';
+                    core.warning(`Failed to cleanup builder ${builder.id}: ${statusCode} - ${errorMessage}${errorDetails}`);
                 }
             } catch (error) {
                 core.warning(`Error cleaning up builder ${builder.id}: ${error.message}`);

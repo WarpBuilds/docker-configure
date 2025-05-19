@@ -163,23 +163,32 @@ async function getBuilderDetails(config, builderId) {
 async function teardownBuilder(config, builderId) {
     const [authType, authValue] = config.authHeader.split(':').map(s => s.trim());
 
-    const response = await makeWarpBuildRequest(
-        config.getBuilderTeardownEndpoint(builderId),
-        {
-            method: 'DELETE',
-            headers: { [authType]: authValue },
-            timeout: 10000
-        }
-    );
-
     try {
-        return JSON.parse(response.data);
-    } catch (error) {
-        // If response is not valid JSON, return a structured error response
+        const response = await makeWarpBuildRequest(
+            config.getBuilderTeardownEndpoint(builderId),
+            {
+                method: 'DELETE',
+                headers: { [authType]: authValue },
+                timeout: 10000
+            }
+        );
+
+        let parsedData;
+        try {
+            parsedData = JSON.parse(response.data);
+        } catch (error) {
+            parsedData = { message: 'Invalid JSON response', rawData: response.data };
+        }
+
         return {
             statusCode: response.statusCode,
-            message: 'Invalid JSON response',
-            rawData: response.data
+            ...parsedData
+        };
+    } catch (error) {
+        return {
+            statusCode: 500,
+            message: error.message || 'Request failed',
+            error: true
         };
     }
 }

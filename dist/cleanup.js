@@ -25811,23 +25811,32 @@ async function getBuilderDetails(config, builderId) {
 async function teardownBuilder(config, builderId) {
     const [authType, authValue] = config.authHeader.split(':').map(s => s.trim());
 
-    const response = await makeWarpBuildRequest(
-        config.getBuilderTeardownEndpoint(builderId),
-        {
-            method: 'DELETE',
-            headers: { [authType]: authValue },
-            timeout: 10000
-        }
-    );
-
     try {
-        return JSON.parse(response.data);
-    } catch (error) {
-        // If response is not valid JSON, return a structured error response
+        const response = await makeWarpBuildRequest(
+            config.getBuilderTeardownEndpoint(builderId),
+            {
+                method: 'DELETE',
+                headers: { [authType]: authValue },
+                timeout: 10000
+            }
+        );
+
+        let parsedData;
+        try {
+            parsedData = JSON.parse(response.data);
+        } catch (error) {
+            parsedData = { message: 'Invalid JSON response', rawData: response.data };
+        }
+
         return {
             statusCode: response.statusCode,
-            message: 'Invalid JSON response',
-            rawData: response.data
+            ...parsedData
+        };
+    } catch (error) {
+        return {
+            statusCode: 500,
+            message: error.message || 'Request failed',
+            error: true
         };
     }
 }
@@ -27799,9 +27808,10 @@ async function cleanup() {
                 if (response.statusCode >= 200 && response.statusCode < 300) {
                     core.info(`Successfully cleaned up builder ${builder.id}`);
                 } else {
-                    const errorMessage = response.message || 'Unknown error';
+                    const errorMessage = response.message || response.error || 'Unknown error';
                     const errorDetails = response.rawData ? ` (Raw response: ${response.rawData})` : '';
-                    core.warning(`Failed to cleanup builder ${builder.id}: ${response.statusCode} ${errorMessage}${errorDetails}`);
+                    const statusCode = response.statusCode || 'No status code';
+                    core.warning(`Failed to cleanup builder ${builder.id}: ${statusCode} - ${errorMessage}${errorDetails}`);
                 }
             } catch (error) {
                 core.warning(`Error cleaning up builder ${builder.id}: ${error.message}`);
