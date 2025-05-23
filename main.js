@@ -103,38 +103,87 @@ async function run() {
         const startTime = Date.now();
         const timeout = parseInt(core.getInput('timeout')) || 200000;
         const profileName = core.getInput('profile-name', { required: true });
+        const backupProfileNamesInput = core.getInput('backup-profile-names');
         const shouldSetupBuildx = core.getInput('should-setup-buildx') !== 'false';
 
-        // Initialize WarpBuild configuration
-        const config = new WarpBuildConfig();
+        // Parse backup profiles
+        let backupProfiles = [];
+        if (backupProfileNamesInput) {
+            backupProfiles = backupProfileNamesInput.split(',').map(p => p.trim()).filter(Boolean);
+            core.info(`Found ${backupProfiles.length} backup profiles: ${backupProfiles.join(', ')}`);
+        }
 
-        // Assign builders
-        const responseData = await assignBuilders(config, profileName, startTime, timeout);
-        const builderName = `builder-${uuidv4()}`;
+        // Try each profile in sequence until one works
+        let allProfiles = [profileName, ...backupProfiles];
+        let builderSetupSuccessful = false;
+        let lastError = null;
 
-        // Save builder information for cleanup
-        const buildersState = {
-            builderName,
-            builders: responseData.builder_instances.map(b => ({
-                id: b.id,
-                index: responseData.builder_instances.indexOf(b)
-            }))
-        };
+        for (let i = 0; i < allProfiles.length; i++) {
+            const currentProfile = allProfiles[i];
+            core.info(`Trying profile: ${currentProfile}${i > 0 ? ' (backup)' : ''}`);
+            
+            try {
+                // Start fresh timer for each profile attempt
+                const profileStartTime = Date.now();
+                
+                // Initialize WarpBuild configuration
+                const config = new WarpBuildConfig();
+
+                // Assign builders
+                const responseData = await assignBuilders(config, currentProfile, profileStartTime, timeout);
+                
+                const builderName = `builder-${uuidv4()}`;
+
+                // Save builder information for cleanup
+                const buildersState = {
+                    builderName,
+                    builders: responseData.builder_instances.map(b => ({
+                        id: b.id,
+                        index: responseData.builder_instances.indexOf(b)
+                    }))
+                };
+                
+                // Save state for post cleanup
+                core.saveState('WARPBUILD_BUILDERS', JSON.stringify(buildersState));
+
+                // Setup each builder node with a fresh timeout
+                for (let j = 0; j < responseData.builder_instances.length; j++) {
+                    const builderId = responseData.builder_instances[j].id;
+                    
+                    // Use a fresh start time for setup
+                    const setupStartTime = Date.now();
+                    await setupBuildxNode(
+                        j,
+                        builderId,
+                        builderName,
+                        config,
+                        timeout,
+                        setupStartTime,
+                        shouldSetupBuildx
+                    );
+                }
+                
+                core.info(`Successfully set up Docker builders with profile: ${currentProfile}`);
+                builderSetupSuccessful = true;
+                break;
+                
+            } catch (error) {
+                lastError = error;
+                core.warning(`Failed to set up with profile ${currentProfile}: ${error.message}`);
+                
+                // Check if we're on the last profile
+                if (i === allProfiles.length - 1) {
+                    core.error(`All profiles failed, including backup profiles`);
+                    throw error;
+                }
+                
+                // Log that we're trying the next backup profile
+                core.info(`Trying next backup profile...`);
+            }
+        }
         
-        // Save state for post cleanup
-        core.saveState('WARPBUILD_BUILDERS', JSON.stringify(buildersState));
-
-        // Setup each builder node
-        for (let i = 0; i < responseData.builder_instances.length; i++) {
-            await setupBuildxNode(
-                i,
-                responseData.builder_instances[i].id,
-                builderName,
-                config,
-                timeout,
-                startTime,
-                shouldSetupBuildx
-            );
+        if (!builderSetupSuccessful) {
+            throw lastError || new Error("Failed to set up Docker builders with any profile");
         }
 
     } catch (error) {

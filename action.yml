@@ -8,6 +8,10 @@ inputs:
   profile-name:
     description: "The profile name to use for the WarpBuild Docker Builders"
     required: true
+  backup-profile-names:
+    description: "A comma-separated list of backup profile names to try if the main profile fails"
+    required: false
+    default: ""
   should-setup-buildx:
     description: "Whether to run setup-buildx automatically or not, if false only the outputs will be returned"
     required: false
