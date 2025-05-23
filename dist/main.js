@@ -26425,6 +26425,8 @@ async function makeWarpBuildRequest(url, options, data = null) {
  * Assigns builders for a given profile
  * @param {WarpBuildConfig} config - WarpBuild configuration
  * @param {string} profileName - Profile name to assign builders for
+ * @param {number} startTime - Starting time in milliseconds
+ * @param {number} timeout - Timeout in milliseconds
  * @returns {Promise<Object>} - Parsed response with builder instances
  */
 async function assignBuilders(config, profileName, startTime, timeout) {
@@ -26432,6 +26434,16 @@ async function assignBuilders(config, profileName, startTime, timeout) {
 
     while (true) {
         try {
+            // Check for timeout before making the request
+            const currentTime = Date.now();
+            const elapsedTime = currentTime - startTime;
+            
+            if (elapsedTime >= timeout) {
+                const timeoutError = new Error(`TIMEOUT: Profile ${profileName} exceeded timeout of ${timeout}ms after ${elapsedTime}ms`);
+                timeoutError.isTimeout = true;
+                throw timeoutError;
+            }
+            
             const response = await makeWarpBuildRequest(
                 config.getAssignBuilderEndpoint(),
                 {
@@ -26455,21 +26467,35 @@ async function assignBuilders(config, profileName, startTime, timeout) {
                 throw new Error(`API Error: ${response.statusCode} - ${JSON.stringify(responseData)}`);
             }
 
-            const currentTime = Date.now();
-            const elapsedTime = currentTime - startTime;
-
-            if (elapsedTime >= timeout) {
-                core.error(`ERROR: Global script timeout of ${timeout}ms exceeded after ${elapsedTime}ms`);
-                core.error('Script execution terminated');
-                throw new Error(`ERROR: Global script timeout of ${timeout}ms exceeded after ${elapsedTime}ms`);
-            }
-
             // Extract error information from response
             const errorDescription = responseData.description || 'No description provided';
             core.info(`Assign builder failed: HTTP Status ${response.statusCode} - ${errorDescription}`);
             core.info('Waiting 10 seconds before next attempt...');
+            
+            // Check if waiting would exceed the timeout
+            if (elapsedTime + 10000 >= timeout) {
+                const timeoutError = new Error(`TIMEOUT: Profile ${profileName} would exceed timeout of ${timeout}ms after waiting`);
+                timeoutError.isTimeout = true;
+                throw timeoutError;
+            }
+            
             await new Promise(resolve => setTimeout(resolve, 10000));
         } catch (error) {
+            // If it's already a timeout error, rethrow it
+            if (error.isTimeout) {
+                throw error;
+            }
+            
+            // Check for timeout after an error
+            const currentTime = Date.now();
+            const elapsedTime = currentTime - startTime;
+            
+            if (elapsedTime >= timeout) {
+                const timeoutError = new Error(`TIMEOUT: Profile ${profileName} exceeded timeout of ${timeout}ms after error: ${error.message}`);
+                timeoutError.isTimeout = true;
+                throw timeoutError;
+            }
+            
             core.warning(`Request failed: ${error.message}`);
             await new Promise(resolve => setTimeout(resolve, 10000));
         }
@@ -28627,7 +28653,17 @@ async function run() {
                 
             } catch (error) {
                 lastError = error;
-                core.warning(`Failed to set up with profile ${currentProfile}: ${error.message}`);
+                
+                // Check if this is a timeout error
+                const isTimeoutError = error.isTimeout || 
+                                     (error.message && (error.message.includes('TIMEOUT:') || 
+                                                      error.message.includes('Global script timeout')));
+                
+                if (isTimeoutError) {
+                    core.warning(`Profile ${currentProfile} timed out: ${error.message}`);
+                } else {
+                    core.warning(`Failed to set up with profile ${currentProfile}: ${error.message}`);
+                }
                 
                 // Check if we're on the last profile
                 if (i === allProfiles.length - 1) {
