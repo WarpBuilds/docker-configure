@@ -169,7 +169,17 @@ async function run() {
                 
             } catch (error) {
                 lastError = error;
-                core.warning(`Failed to set up with profile ${currentProfile}: ${error.message}`);
+                
+                // Check if this is a timeout error
+                const isTimeoutError = error.isTimeout || 
+                                     (error.message && (error.message.includes('TIMEOUT:') || 
+                                                      error.message.includes('Global script timeout')));
+                
+                if (isTimeoutError) {
+                    core.warning(`Profile ${currentProfile} timed out: ${error.message}`);
+                } else {
+                    core.warning(`Failed to set up with profile ${currentProfile}: ${error.message}`);
+                }
                 
                 // Check if we're on the last profile
                 if (i === allProfiles.length - 1) {
