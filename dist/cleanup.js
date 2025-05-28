@@ -25749,50 +25749,57 @@ async function makeWarpBuildRequest(url, options, data = null) {
 async function assignBuilders(config, profileName, startTime, timeout) {
     const [authType, authValue] = config.authHeader.split(':').map(s => s.trim());
 
-    while (true) {
-        try {
-            const response = await makeWarpBuildRequest(
-                config.getAssignBuilderEndpoint(),
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        [authType]: authValue
-                    }
-                },
-                JSON.stringify({ profile_name: profileName })
-            );
+    const profileNameList = profileName.split(',');
+    for (const profile of profileNameList) {
+        core.info(`Assigning builders for profile ${profile}`);
+        while (true) {
+            try {
+                // Check if timeout has been exceeded at start
+                const currentTime = Date.now();
+                const elapsedTime = currentTime - startTime;
 
-            const responseData = JSON.parse(response.data);
-            if (response.statusCode >= 200 && response.statusCode < 300 && 
-                responseData.builder_instances?.length > 0) {
-                return responseData;
+                if (elapsedTime >= timeout) {
+                    core.info(`Timeout of ${timeout}ms exceeded after ${elapsedTime}ms for profile ${profile}`);
+                    break;
+                }
+
+                const response = await makeWarpBuildRequest(
+                    config.getAssignBuilderEndpoint(),
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            [authType]: authValue
+                        }
+                    },
+                    JSON.stringify({ profile_name: profile.trim() })
+                );
+
+                const responseData = JSON.parse(response.data);
+                if (response.statusCode >= 200 && response.statusCode < 300 && 
+                    responseData.builder_instances?.length > 0) {
+                    return responseData;
+                }
+
+                if (![409, 429].includes(response.statusCode) && 
+                    !(response.statusCode >= 500 && response.statusCode < 600)) {
+                    throw new Error(`API Error: ${response.statusCode} - ${JSON.stringify(responseData)}`);
+                }
+
+                // Extract error information from response
+                const errorDescription = responseData.description || 'No description provided';
+                core.info(`Assign builder failed: HTTP Status ${response.statusCode} - ${errorDescription}. Waiting 10 seconds before next attempt...`);
+                await new Promise(resolve => setTimeout(resolve, 10000));
+            } catch (error) {
+                core.warning(`Request failed: ${error.message}. Waiting 10 seconds before next attempt...`);
+                await new Promise(resolve => setTimeout(resolve, 10000));
             }
-
-            if (![409, 429].includes(response.statusCode) && 
-                !(response.statusCode >= 500 && response.statusCode < 600)) {
-                throw new Error(`API Error: ${response.statusCode} - ${JSON.stringify(responseData)}`);
-            }
-
-            const currentTime = Date.now();
-            const elapsedTime = currentTime - startTime;
-
-            if (elapsedTime >= timeout) {
-                core.error(`ERROR: Global script timeout of ${timeout}ms exceeded after ${elapsedTime}ms`);
-                core.error('Script execution terminated');
-                throw new Error(`ERROR: Global script timeout of ${timeout}ms exceeded after ${elapsedTime}ms`);
-            }
-
-            // Extract error information from response
-            const errorDescription = responseData.description || 'No description provided';
-            core.info(`Assign builder failed: HTTP Status ${response.statusCode} - ${errorDescription}`);
-            core.info('Waiting 10 seconds before next attempt...');
-            await new Promise(resolve => setTimeout(resolve, 10000));
-        } catch (error) {
-            core.warning(`Request failed: ${error.message}`);
-            await new Promise(resolve => setTimeout(resolve, 10000));
         }
+        core.info(`Failed to get builders for profile ${profile}`);
+        startTime = Date.now(); // Reset the start time for the next profile
     }
+    core.error('Failed to get builders for input profile');
+    throw new Error('Failed to get builders for input profile');
 }
 
 /**
