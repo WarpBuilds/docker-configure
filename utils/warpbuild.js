@@ -101,7 +101,7 @@ async function makeWarpBuildRequest(url, options, data = null) {
 async function assignBuilders(config, profileName, startTime, timeout) {
     const [authType, authValue] = config.authHeader.split(':').map(s => s.trim());
 
-    profileNameList = profileName.split(',');
+    const profileNameList = profileName.split(',');
     for (const profile of profileNameList) {
         core.info(`Assigning builders for profile ${profile}`);
         while (true) {
