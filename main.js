@@ -124,6 +124,7 @@ async function run() {
         // Save state for post cleanup
         core.saveState('WARPBUILD_BUILDERS', JSON.stringify(buildersState));
 
+        startTime = Date.now(); // Reset the start time.
         // Setup each builder node
         for (let i = 0; i < responseData.builder_instances.length; i++) {
             await setupBuildxNode(
