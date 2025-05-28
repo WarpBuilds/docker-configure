@@ -100,7 +100,7 @@ async function setupBuildxNode(index, builderId, builderName, config, timeout, s
 
 async function run() {
     try {
-        const startTime = Date.now();
+        let startTime = Date.now();
         const timeout = parseInt(core.getInput('timeout')) || 200000;
         const profileName = core.getInput('profile-name', { required: true });
         const shouldSetupBuildx = core.getInput('should-setup-buildx') !== 'false';
