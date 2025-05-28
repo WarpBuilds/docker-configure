@@ -26427,53 +26427,61 @@ async function makeWarpBuildRequest(url, options, data = null) {
  * @param {string} profileName - Profile name to assign builders for
  * @returns {Promise<Object>} - Parsed response with builder instances
  */
-async function assignBuilders(config, profileName, startTime, timeout) {
+async function assignBuilders(config, profileName, timeout) {
     const [authType, authValue] = config.authHeader.split(':').map(s => s.trim());
 
-    while (true) {
-        try {
-            const response = await makeWarpBuildRequest(
-                config.getAssignBuilderEndpoint(),
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        [authType]: authValue
-                    }
-                },
-                JSON.stringify({ profile_name: profileName })
-            );
+    let profileNameList = profileName.split(',');
+    profileNameList = profileNameList.map(p => p.trim());
+    for (const profile of profileNameList) {
+        core.info(`Assigning builders for profile ${profile}`);
+        while (true) {
+            try {
+                // Check if timeout has been exceeded at start
+                const currentTime = Date.now();
+                const elapsedTime = currentTime - global.startTime;
 
-            const responseData = JSON.parse(response.data);
-            if (response.statusCode >= 200 && response.statusCode < 300 && 
-                responseData.builder_instances?.length > 0) {
-                return responseData;
+                if (elapsedTime >= timeout) {
+                    core.info(`Timeout of ${timeout}ms exceeded after ${elapsedTime}ms for profile ${profile}`);
+                    break;
+                }
+
+                const response = await makeWarpBuildRequest(
+                    config.getAssignBuilderEndpoint(),
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            [authType]: authValue
+                        }
+                    },
+                    JSON.stringify({ profile_name: profile })
+                );
+
+                const responseData = JSON.parse(response.data);
+                if (response.statusCode >= 200 && response.statusCode < 300 && 
+                    responseData.builder_instances?.length > 0) {
+                    return responseData;
+                }
+
+                if (![409, 429].includes(response.statusCode) && 
+                    !(response.statusCode >= 500 && response.statusCode < 600)) {
+                    throw new Error(`API Error: ${response.statusCode} - ${JSON.stringify(responseData)}`);
+                }
+
+                // Extract error information from response
+                const errorDescription = responseData.description || 'No description provided';
+                core.info(`Assign builder failed: HTTP Status ${response.statusCode} - ${errorDescription}. Waiting 10 seconds before next attempt...`);
+                await new Promise(resolve => setTimeout(resolve, 10000));
+            } catch (error) {
+                core.warning(`Request failed: ${error.message}. Waiting 10 seconds before next attempt...`);
+                await new Promise(resolve => setTimeout(resolve, 10000));
             }
-
-            if (![409, 429].includes(response.statusCode) && 
-                !(response.statusCode >= 500 && response.statusCode < 600)) {
-                throw new Error(`API Error: ${response.statusCode} - ${JSON.stringify(responseData)}`);
-            }
-
-            const currentTime = Date.now();
-            const elapsedTime = currentTime - startTime;
-
-            if (elapsedTime >= timeout) {
-                core.error(`ERROR: Global script timeout of ${timeout}ms exceeded after ${elapsedTime}ms`);
-                core.error('Script execution terminated');
-                throw new Error(`ERROR: Global script timeout of ${timeout}ms exceeded after ${elapsedTime}ms`);
-            }
-
-            // Extract error information from response
-            const errorDescription = responseData.description || 'No description provided';
-            core.info(`Assign builder failed: HTTP Status ${response.statusCode} - ${errorDescription}`);
-            core.info('Waiting 10 seconds before next attempt...');
-            await new Promise(resolve => setTimeout(resolve, 10000));
-        } catch (error) {
-            core.warning(`Request failed: ${error.message}`);
-            await new Promise(resolve => setTimeout(resolve, 10000));
         }
+        core.info(`Failed to get builders for profile ${profile}`);
+        global.startTime = Date.now(); // Reset the start time for the next profile
     }
+    core.error('Failed to get builders for input profile');
+    throw new Error('Failed to get builders for input profile');
 }
 
 /**
@@ -28465,10 +28473,10 @@ const os = __nccwpck_require__(857);
 const { WarpBuildConfig, assignBuilders, getBuilderDetails } = __nccwpck_require__(6784);
 
 // Helper function to wait for builder details
-async function waitForBuilderDetails(builderId, config, timeout, startTime) {
+async function waitForBuilderDetails(builderId, config, timeout) {
     while (true) {
         const currentTime = Date.now();
-        const elapsed = currentTime - startTime;
+        const elapsed = currentTime - global.startTime;
 
         if (elapsed > timeout) {
             core.error(`ERROR: Global script timeout of ${timeout}ms exceeded after ${elapsed}ms`);
@@ -28498,8 +28506,8 @@ async function waitForBuilderDetails(builderId, config, timeout, startTime) {
     }
 }
 
-async function setupBuildxNode(index, builderId, builderName, config, timeout, startTime, shouldSetupBuildx) {
-    const details = await waitForBuilderDetails(builderId, config, timeout, startTime);
+async function setupBuildxNode(index, builderId, builderName, config, timeout, shouldSetupBuildx) {
+    const details = await waitForBuilderDetails(builderId, config, timeout);
 
     const builderHost = details.metadata.host;
     const builderCa = details.metadata.ca;
@@ -28558,8 +28566,9 @@ async function setupBuildxNode(index, builderId, builderName, config, timeout, s
 
 async function run() {
     try {
-        const startTime = Date.now();
-        const timeout = parseInt(core.getInput('timeout')) || 200000;
+        // Initialize global start time
+        global.startTime = Date.now();
+        const timeout = parseInt(core.getInput('timeout')) || 300000;
         const profileName = core.getInput('profile-name', { required: true });
         const shouldSetupBuildx = core.getInput('should-setup-buildx') !== 'false';
 
@@ -28567,7 +28576,7 @@ async function run() {
         const config = new WarpBuildConfig();
 
         // Assign builders
-        const responseData = await assignBuilders(config, profileName, startTime, timeout);
+        const responseData = await assignBuilders(config, profileName, timeout);
         const builderName = `builder-${uuidv4()}`;
 
         // Save builder information for cleanup
@@ -28590,11 +28599,9 @@ async function run() {
                 builderName,
                 config,
                 timeout,
-                startTime,
                 shouldSetupBuildx
             );
         }
-
     } catch (error) {
         core.setFailed(error.message);
     }
