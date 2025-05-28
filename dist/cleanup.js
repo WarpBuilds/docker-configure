@@ -25746,17 +25746,18 @@ async function makeWarpBuildRequest(url, options, data = null) {
  * @param {string} profileName - Profile name to assign builders for
  * @returns {Promise<Object>} - Parsed response with builder instances
  */
-async function assignBuilders(config, profileName, startTime, timeout) {
+async function assignBuilders(config, profileName, timeout) {
     const [authType, authValue] = config.authHeader.split(':').map(s => s.trim());
 
     let profileNameList = profileName.split(',');
+    profileNameList = profileNameList.map(p => p.trim());
     for (const profile of profileNameList) {
         core.info(`Assigning builders for profile ${profile}`);
         while (true) {
             try {
                 // Check if timeout has been exceeded at start
                 const currentTime = Date.now();
-                const elapsedTime = currentTime - startTime;
+                const elapsedTime = currentTime - global.startTime;
 
                 if (elapsedTime >= timeout) {
                     core.info(`Timeout of ${timeout}ms exceeded after ${elapsedTime}ms for profile ${profile}`);
@@ -25772,7 +25773,7 @@ async function assignBuilders(config, profileName, startTime, timeout) {
                             [authType]: authValue
                         }
                     },
-                    JSON.stringify({ profile_name: profile.trim() })
+                    JSON.stringify({ profile_name: profile })
                 );
 
                 const responseData = JSON.parse(response.data);
@@ -25796,7 +25797,7 @@ async function assignBuilders(config, profileName, startTime, timeout) {
             }
         }
         core.info(`Failed to get builders for profile ${profile}`);
-        startTime = Date.now(); // Reset the start time for the next profile
+        global.startTime = Date.now(); // Reset the start time for the next profile
     }
     core.error('Failed to get builders for input profile');
     throw new Error('Failed to get builders for input profile');
