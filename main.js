@@ -128,6 +128,7 @@ async function run() {
 
         // Setup each builder node
         for (let i = 0; i < responseData.builder_instances.length; i++) {
+            core.info(`Setting up builder node ${responseData.builder_instances[i].id} and request ${responseData.builder_instances[i].request_id}...`);
             await setupBuildxNode(
                 i,
                 responseData.builder_instances[i].id,
