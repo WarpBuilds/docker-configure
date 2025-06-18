@@ -118,6 +118,7 @@ async function run() {
             builderName,
             builders: responseData.builder_instances.map(b => ({
                 id: b.id,
+                request_id: b.request_id,
                 index: responseData.builder_instances.indexOf(b)
             }))
         };

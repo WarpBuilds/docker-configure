@@ -30,13 +30,13 @@ async function cleanup() {
         // Cleanup each builder using the WarpBuild API
         for (const builder of builders) {
             try {
-                let response = await teardownBuilder(config, builder.id);
+                let response = await teardownBuilder(config, builder);
                 
                 // Handle retry for server errors
                 if (response.statusCode >= 500 && response.statusCode < 600) {
                     core.info(`Got ${response.statusCode} error, retrying teardown for builder ${builder.id} after 1 second...`);
                     await new Promise(resolve => setTimeout(resolve, 1000));
-                    response = await teardownBuilder(config, builder.id);
+                    response = await teardownBuilder(config, builder);
                 }
 
                 // Check if response is valid

@@ -25706,11 +25706,10 @@ class WarpBuildConfig {
 
     /**
      * Get builder teardown endpoint
-     * @param {string} builderId 
      * @returns {string}
      */
-    getBuilderTeardownEndpoint(builderId) {
-        return `${this.apiDomain}/api/v1/builders/${builderId}/teardown`;
+    getBuilderTeardownEndpoint() {
+        return `${this.apiDomain}/api/v1/builder-session-requests/complete`;
     }
 }
 
@@ -25828,17 +25827,18 @@ async function getBuilderDetails(config, builderId) {
  * @param {WarpBuildConfig} config - WarpBuild configuration
  * @param {string} builderId - Builder ID to teardown
  */
-async function teardownBuilder(config, builderId) {
+async function teardownBuilder(config, builder) {
     const [authType, authValue] = config.authHeader.split(':').map(s => s.trim());
 
     try {
         const response = await makeWarpBuildRequest(
-            config.getBuilderTeardownEndpoint(builderId),
+            config.getBuilderTeardownEndpoint(),
             {
-                method: 'DELETE',
+                method: 'POST',
                 headers: { [authType]: authValue },
                 timeout: 10000
-            }
+            },
+            JSON.stringify({ request_id: builder.request_id })
         );
 
         let parsedData;
@@ -27815,13 +27815,13 @@ async function cleanup() {
         // Cleanup each builder using the WarpBuild API
         for (const builder of builders) {
             try {
-                let response = await teardownBuilder(config, builder.id);
+                let response = await teardownBuilder(config, builder);
                 
                 // Handle retry for server errors
                 if (response.statusCode >= 500 && response.statusCode < 600) {
                     core.info(`Got ${response.statusCode} error, retrying teardown for builder ${builder.id} after 1 second...`);
                     await new Promise(resolve => setTimeout(resolve, 1000));
-                    response = await teardownBuilder(config, builder.id);
+                    response = await teardownBuilder(config, builder);
                 }
 
                 // Check if response is valid
