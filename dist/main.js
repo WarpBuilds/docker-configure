@@ -26387,11 +26387,10 @@ class WarpBuildConfig {
 
     /**
      * Get builder teardown endpoint
-     * @param {string} builderId 
      * @returns {string}
      */
-    getBuilderTeardownEndpoint(builderId) {
-        return `${this.apiDomain}/api/v1/builders/${builderId}/teardown`;
+    getBuilderTeardownEndpoint() {
+        return `${this.apiDomain}/api/v1/builder-session-requests/complete`;
     }
 }
 
@@ -26509,17 +26508,18 @@ async function getBuilderDetails(config, builderId) {
  * @param {WarpBuildConfig} config - WarpBuild configuration
  * @param {string} builderId - Builder ID to teardown
  */
-async function teardownBuilder(config, builderId) {
+async function teardownBuilder(config, builder) {
     const [authType, authValue] = config.authHeader.split(':').map(s => s.trim());
 
     try {
         const response = await makeWarpBuildRequest(
-            config.getBuilderTeardownEndpoint(builderId),
+            config.getBuilderTeardownEndpoint(),
             {
-                method: 'DELETE',
+                method: 'POST',
                 headers: { [authType]: authValue },
                 timeout: 10000
-            }
+            },
+            JSON.stringify({ request_id: builder.request_id })
         );
 
         let parsedData;
@@ -28584,6 +28584,7 @@ async function run() {
             builderName,
             builders: responseData.builder_instances.map(b => ({
                 id: b.id,
+                request_id: b.request_id,
                 index: responseData.builder_instances.indexOf(b)
             }))
         };
@@ -28593,6 +28594,7 @@ async function run() {
 
         // Setup each builder node
         for (let i = 0; i < responseData.builder_instances.length; i++) {
+            core.info(`Setting up builder node ${responseData.builder_instances[i].id} and request ${responseData.builder_instances[i].request_id}...`);
             await setupBuildxNode(
                 i,
                 responseData.builder_instances[i].id,

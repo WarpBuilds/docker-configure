@@ -58,11 +58,10 @@ class WarpBuildConfig {
 
     /**
      * Get builder teardown endpoint
-     * @param {string} builderId 
      * @returns {string}
      */
-    getBuilderTeardownEndpoint(builderId) {
-        return `${this.apiDomain}/api/v1/builders/${builderId}/teardown`;
+    getBuilderTeardownEndpoint() {
+        return `${this.apiDomain}/api/v1/builder-session-requests/complete`;
     }
 }
 
@@ -180,17 +179,18 @@ async function getBuilderDetails(config, builderId) {
  * @param {WarpBuildConfig} config - WarpBuild configuration
  * @param {string} builderId - Builder ID to teardown
  */
-async function teardownBuilder(config, builderId) {
+async function teardownBuilder(config, builder) {
     const [authType, authValue] = config.authHeader.split(':').map(s => s.trim());
 
     try {
         const response = await makeWarpBuildRequest(
-            config.getBuilderTeardownEndpoint(builderId),
+            config.getBuilderTeardownEndpoint(),
             {
-                method: 'DELETE',
+                method: 'POST',
                 headers: { [authType]: authValue },
                 timeout: 10000
-            }
+            },
+            JSON.stringify({ request_id: builder.request_id })
         );
 
         let parsedData;

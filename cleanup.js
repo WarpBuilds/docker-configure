@@ -30,26 +30,26 @@ async function cleanup() {
         // Cleanup each builder using the WarpBuild API
         for (const builder of builders) {
             try {
-                let response = await teardownBuilder(config, builder.id);
+                let response = await teardownBuilder(config, builder);
                 
                 // Handle retry for server errors
                 if (response.statusCode >= 500 && response.statusCode < 600) {
-                    core.info(`Got ${response.statusCode} error, retrying teardown for builder ${builder.id} after 1 second...`);
+                    core.info(`Got ${response.statusCode} error, retrying teardown for builder request ${builder.request_id} after 1 second...`);
                     await new Promise(resolve => setTimeout(resolve, 1000));
-                    response = await teardownBuilder(config, builder.id);
+                    response = await teardownBuilder(config, builder);
                 }
 
                 // Check if response is valid
                 if (response.statusCode >= 200 && response.statusCode < 300) {
-                    core.info(`Successfully cleaned up builder ${builder.id}`);
+                    core.info(`Successfully cleaned up builder request ${builder.request_id}`);
                 } else {
                     const errorMessage = response.message || response.error || 'Unknown error';
                     const errorDetails = response.rawData ? ` (Raw response: ${response.rawData})` : '';
                     const statusCode = response.statusCode || 'No status code';
-                    core.warning(`Failed to cleanup builder ${builder.id}: ${statusCode} - ${errorMessage}${errorDetails}`);
+                    core.warning(`Failed to cleanup builder request ${builder.request_id}: ${statusCode} - ${errorMessage}${errorDetails}`);
                 }
             } catch (error) {
-                core.warning(`Error cleaning up builder ${builder.id}: ${error.message}`);
+                core.warning(`Error cleaning up builder request ${builder.request_id}: ${error.message}`);
             }
         }
 
