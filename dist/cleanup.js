@@ -25760,7 +25760,7 @@ async function makeWarpBuildRequest(url, options, data = null) {
  * @param {string} profileName - Profile name to assign builders for
  * @returns {Promise<Object>} - Parsed response with builder instances
  */
-async function assignBuilders(config, builderName, profileName, timeout) {
+async function assignBuilders(config, idempotencyKey, profileName, timeout) {
     const [authType, authValue] = config.authHeader.split(':').map(s => s.trim());
 
     let profileNameList = profileName.split(',');
@@ -25787,7 +25787,7 @@ async function assignBuilders(config, builderName, profileName, timeout) {
                             [authType]: authValue
                         }
                     },
-                    JSON.stringify({ profile_name: profile , request_metadata: config.getRequestContext(), unique_external_id: builderName})
+                    JSON.stringify({ profile_name: profile , request_metadata: config.getRequestContext(), external_unique_id: idempotencyKey})
                 );
 
                 const responseData = JSON.parse(response.data);
@@ -25842,7 +25842,7 @@ async function getBuilderDetails(config, builderId) {
  * @param {WarpBuildConfig} config - WarpBuild configuration
  * @param {string} builderId - Builder ID to teardown
  */
-async function teardownBuilder(config, builder) {
+async function teardownBuilder(config, idempotencyKey, builder) {
     const [authType, authValue] = config.authHeader.split(':').map(s => s.trim());
 
     try {
@@ -27812,7 +27812,7 @@ async function cleanup() {
         }
 
         const buildersState = JSON.parse(buildersStateJson);
-        const { builderName, builders } = buildersState;
+        const { builderName, idempotencyKey, builders } = buildersState;
 
         core.info(`Cleaning up ${builders.length} builders...`);
 
@@ -27830,7 +27830,7 @@ async function cleanup() {
         // Cleanup each builder using the WarpBuild API
         for (const builder of builders) {
             try {
-                let response = await teardownBuilder(config, builder);
+                let response = await teardownBuilder(config, idempotencyKey, builder);
                 
                 // Handle retry for server errors
                 if (response.statusCode >= 500 && response.statusCode < 600) {

@@ -26441,7 +26441,7 @@ async function makeWarpBuildRequest(url, options, data = null) {
  * @param {string} profileName - Profile name to assign builders for
  * @returns {Promise<Object>} - Parsed response with builder instances
  */
-async function assignBuilders(config, builderName, profileName, timeout) {
+async function assignBuilders(config, idempotencyKey, profileName, timeout) {
     const [authType, authValue] = config.authHeader.split(':').map(s => s.trim());
 
     let profileNameList = profileName.split(',');
@@ -26468,7 +26468,7 @@ async function assignBuilders(config, builderName, profileName, timeout) {
                             [authType]: authValue
                         }
                     },
-                    JSON.stringify({ profile_name: profile , request_metadata: config.getRequestContext(), unique_external_id: builderName})
+                    JSON.stringify({ profile_name: profile , request_metadata: config.getRequestContext(), external_unique_id: idempotencyKey})
                 );
 
                 const responseData = JSON.parse(response.data);
@@ -26523,7 +26523,7 @@ async function getBuilderDetails(config, builderId) {
  * @param {WarpBuildConfig} config - WarpBuild configuration
  * @param {string} builderId - Builder ID to teardown
  */
-async function teardownBuilder(config, builder) {
+async function teardownBuilder(config, idempotencyKey, builder) {
     const [authType, authValue] = config.authHeader.split(':').map(s => s.trim());
 
     try {
@@ -28593,14 +28593,15 @@ async function run() {
         // Example output: lq1cr8p2n5x7d3fy
         const timestamp = Date.now().toString(36);
         const random = Math.random().toString(36).substring(2, 10);
-        const builderName = `${timestamp}${random}`.substring(0, 16);
-        //const builderName = `builder-${uuidv4()}`;
+        const idempotencyKey = `${timestamp}${random}`.substring(0, 16);
+        const builderName = `builder-${idempotencyKey}`;
         // Assign builders
-        const responseData = await assignBuilders(config, builderName, profileName, timeout);
+        const responseData = await assignBuilders(config, idempotencyKey, profileName, timeout);
 
         // Save builder information for cleanup
         const buildersState = {
             builderName,
+            idempotencyKey,
             builders: responseData.builder_instances.map(b => ({
                 id: b.id,
                 request_id: b.request_id,

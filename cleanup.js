@@ -12,7 +12,7 @@ async function cleanup() {
         }
 
         const buildersState = JSON.parse(buildersStateJson);
-        const { builderName, builders } = buildersState;
+        const { builderName, idempotencyKey, builders } = buildersState;
 
         core.info(`Cleaning up ${builders.length} builders...`);
 
@@ -30,7 +30,7 @@ async function cleanup() {
         // Cleanup each builder using the WarpBuild API
         for (const builder of builders) {
             try {
-                let response = await teardownBuilder(config, builder);
+                let response = await teardownBuilder(config, idempotencyKey, builder);
                 
                 // Handle retry for server errors
                 if (response.statusCode >= 500 && response.statusCode < 600) {
