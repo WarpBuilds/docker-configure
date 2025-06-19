@@ -26392,6 +26392,21 @@ class WarpBuildConfig {
     getBuilderTeardownEndpoint() {
         return `${this.apiDomain}/api/v1/builder-session-requests/complete`;
     }
+
+    /**
+     * Get request context from github action job environment variables
+     * 
+     * @returns {Object}
+     */
+    getRequestContext() {
+        return {
+            runner_name: process.env.RUNNER_NAME,
+            github_job_id: process.env.GITHUB_JOB,
+            run_id: process.env.GITHUB_RUN_ID,
+            run_attempt: process.env.GITHUB_RUN_ATTEMPT,
+            repo: process.env.GITHUB_REPOSITORY,
+        };
+    }
 }
 
 /**
@@ -26426,7 +26441,7 @@ async function makeWarpBuildRequest(url, options, data = null) {
  * @param {string} profileName - Profile name to assign builders for
  * @returns {Promise<Object>} - Parsed response with builder instances
  */
-async function assignBuilders(config, profileName, timeout) {
+async function assignBuilders(config, idempotencyKey, profileName, timeout) {
     const [authType, authValue] = config.authHeader.split(':').map(s => s.trim());
 
     let profileNameList = profileName.split(',');
@@ -26453,7 +26468,7 @@ async function assignBuilders(config, profileName, timeout) {
                             [authType]: authValue
                         }
                     },
-                    JSON.stringify({ profile_name: profile })
+                    JSON.stringify({ profile_name: profile , request_metadata: config.getRequestContext(), external_unique_id: idempotencyKey})
                 );
 
                 const responseData = JSON.parse(response.data);
@@ -26508,7 +26523,7 @@ async function getBuilderDetails(config, builderId) {
  * @param {WarpBuildConfig} config - WarpBuild configuration
  * @param {string} builderId - Builder ID to teardown
  */
-async function teardownBuilder(config, builder) {
+async function teardownBuilder(config, idempotencyKey, builder) {
     const [authType, authValue] = config.authHeader.split(':').map(s => s.trim());
 
     try {
@@ -26519,7 +26534,7 @@ async function teardownBuilder(config, builder) {
                 headers: { [authType]: authValue },
                 timeout: 10000
             },
-            JSON.stringify({ request_id: builder.request_id })
+            JSON.stringify({ request_id: builder.request_id, external_unique_id: idempotencyKey })
         );
 
         let parsedData;
@@ -28575,13 +28590,16 @@ async function run() {
         // Initialize WarpBuild configuration
         const config = new WarpBuildConfig();
 
+        // Example output: lq1cr8p2n5x7d3fy
+        const idempotencyKey = uuidv4().replace(/-/g, '').substring(0, 16);
+        const builderName = `builder-${idempotencyKey}`;
         // Assign builders
-        const responseData = await assignBuilders(config, profileName, timeout);
-        const builderName = `builder-${uuidv4()}`;
+        const responseData = await assignBuilders(config, idempotencyKey, profileName, timeout);
 
         // Save builder information for cleanup
         const buildersState = {
             builderName,
+            idempotencyKey,
             builders: responseData.builder_instances.map(b => ({
                 id: b.id,
                 request_id: b.request_id,

@@ -109,13 +109,16 @@ async function run() {
         // Initialize WarpBuild configuration
         const config = new WarpBuildConfig();
 
+        // Example output: lq1cr8p2n5x7d3fy
+        const idempotencyKey = uuidv4().replace(/-/g, '').substring(0, 16);
+        const builderName = `builder-${idempotencyKey}`;
         // Assign builders
-        const responseData = await assignBuilders(config, profileName, timeout);
-        const builderName = `builder-${uuidv4()}`;
+        const responseData = await assignBuilders(config, idempotencyKey, profileName, timeout);
 
         // Save builder information for cleanup
         const buildersState = {
             builderName,
+            idempotencyKey,
             builders: responseData.builder_instances.map(b => ({
                 id: b.id,
                 request_id: b.request_id,
