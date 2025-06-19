@@ -28591,9 +28591,7 @@ async function run() {
         const config = new WarpBuildConfig();
 
         // Example output: lq1cr8p2n5x7d3fy
-        const timestamp = Date.now().toString(36);
-        const random = Math.random().toString(36).substring(2, 10);
-        const idempotencyKey = `${timestamp}${random}`.substring(0, 16);
+        const idempotencyKey = uuidv4().replace(/-/g, '').substring(0, 16);
         const builderName = `builder-${idempotencyKey}`;
         // Assign builders
         const responseData = await assignBuilders(config, idempotencyKey, profileName, timeout);
