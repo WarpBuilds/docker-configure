@@ -26534,7 +26534,7 @@ async function teardownBuilder(config, idempotencyKey, builder) {
                 headers: { [authType]: authValue },
                 timeout: 10000
             },
-            JSON.stringify({ request_id: builder.request_id })
+            JSON.stringify({ request_id: builder.request_id, external_unique_id: idempotencyKey })
         );
 
         let parsedData;
