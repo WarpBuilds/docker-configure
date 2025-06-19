@@ -63,6 +63,21 @@ class WarpBuildConfig {
     getBuilderTeardownEndpoint() {
         return `${this.apiDomain}/api/v1/builder-session-requests/complete`;
     }
+
+    /**
+     * Get request context from github action job environment variables
+     * 
+     * @returns {Object}
+     */
+    getRequestContext() {
+        return {
+            runner_name: process.env.RUNNER_NAME,
+            github_job_id: process.env.GITHUB_JOB,
+            run_id: process.env.GITHUB_RUN_ID,
+            run_attempt: process.env.GITHUB_RUN_ATTEMPT,
+            repo: process.env.GITHUB_REPOSITORY,
+        };
+    }
 }
 
 /**
@@ -97,7 +112,7 @@ async function makeWarpBuildRequest(url, options, data = null) {
  * @param {string} profileName - Profile name to assign builders for
  * @returns {Promise<Object>} - Parsed response with builder instances
  */
-async function assignBuilders(config, profileName, timeout) {
+async function assignBuilders(config, builderName, profileName, timeout) {
     const [authType, authValue] = config.authHeader.split(':').map(s => s.trim());
 
     let profileNameList = profileName.split(',');
@@ -124,7 +139,7 @@ async function assignBuilders(config, profileName, timeout) {
                             [authType]: authValue
                         }
                     },
-                    JSON.stringify({ profile_name: profile })
+                    JSON.stringify({ profile_name: profile , request_metadata: config.getRequestContext(), unique_external_id: builderName})
                 );
 
                 const responseData = JSON.parse(response.data);
