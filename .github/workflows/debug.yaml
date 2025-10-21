@@ -35,7 +35,7 @@ jobs:
         uses: ./
         with:
           profile-name: ${{ inputs.profile-name }}
-          # api-key: ${{ secrets.WARPBUILD_API_KEY }}
+          api-key: ${{ secrets.WARPBUILD_API_KEY }}
           should-setup-buildx: true
           timeout: 40000
 
